@@ -202,17 +202,18 @@ int SGX_CDECL main(int argc, char *argv[])
         getchar();
         return -1; 
     }
-    ecall_printf(global_eid);
-    ecall_memset_s(global_eid, &retv);
-    ecall_fchmod(global_eid, &retv);
-    ecall_time(global_eid, &retv);
-    ecall_mmap(global_eid, &retv);
+    //ecall_printf(global_eid);
+    //ecall_memset_s(global_eid, &retv);
+    //ecall_fchmod(global_eid, &retv);
+    //ecall_time(global_eid, &retv);
+    //ecall_mmap(global_eid, &retv);
+    ecall_sqlclient(global_eid, &retv);
 
     //socket
-    std::thread t_socket_receiver(socket_receiver);
-    std::thread t_socket_sender(socket_sender);
-    t_socket_receiver.join();
-    t_socket_sender.join();
+    //std::thread t_socket_receiver(socket_receiver);
+    //std::thread t_socket_sender(socket_sender);
+    //t_socket_receiver.join();
+    //t_socket_sender.join();
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);

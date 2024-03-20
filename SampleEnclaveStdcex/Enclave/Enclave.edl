@@ -48,6 +48,7 @@ enclave {
         public void ecall_socket_sender();
         public int ecall_time();
         public int ecall_mmap();
+        public int ecall_sqlclient();
     };
 
 };
