@@ -9,3 +9,5 @@ License
 -------
 
 GPL for now.
+
+Refer to https://github.com/intel/linux-sgx/tree/stdc_ex to use SGX stdc_ex lib.
