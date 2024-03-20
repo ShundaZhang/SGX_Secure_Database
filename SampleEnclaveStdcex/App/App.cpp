@@ -173,22 +173,6 @@ int initialize_enclave(void)
     return 0;
 }
 
-void socket_receiver(void)
-{
-    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
-    ret = ecall_socket_receiver(global_eid);
-    if (ret != SGX_SUCCESS)
-        abort();
-}
-
-void socket_sender(void)
-{
-    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
-    ret = ecall_socket_sender(global_eid);
-    if (ret != SGX_SUCCESS)
-        abort();
-}
-
 /* Application entry */
 int SGX_CDECL main(int argc, char *argv[])
 {
@@ -202,18 +186,8 @@ int SGX_CDECL main(int argc, char *argv[])
         getchar();
         return -1; 
     }
-    //ecall_printf(global_eid);
-    //ecall_memset_s(global_eid, &retv);
-    //ecall_fchmod(global_eid, &retv);
-    //ecall_time(global_eid, &retv);
-    //ecall_mmap(global_eid, &retv);
+    
     ecall_sqlclient(global_eid, &retv);
-
-    //socket
-    //std::thread t_socket_receiver(socket_receiver);
-    //std::thread t_socket_sender(socket_sender);
-    //t_socket_receiver.join();
-    //t_socket_sender.join();
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);

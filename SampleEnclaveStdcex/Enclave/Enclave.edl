@@ -41,13 +41,6 @@ enclave {
      */
    from "sgx_stdc_ex.edl" import *; 
    trusted {
-        public void ecall_printf();
-        public int ecall_memset_s();
-        public int ecall_fchmod();
-        public void ecall_socket_receiver();
-        public void ecall_socket_sender();
-        public int ecall_time();
-        public int ecall_mmap();
         public int ecall_sqlclient();
     };
 
