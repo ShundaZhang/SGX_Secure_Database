@@ -36,6 +36,7 @@ SSL_CTX *create_context() {
 
 void configure_context(SSL_CTX *ctx) {
     // In a real application, you would set the verify paths and mode here
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
     // SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
     // SSL_CTX_load_verify_locations(ctx, "path/to/ca_cert.pem", NULL);
 }
