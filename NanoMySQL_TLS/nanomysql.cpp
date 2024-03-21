@@ -22,6 +22,43 @@ using namespace std;
 #define MAX_PACKET	16777216 // bytes
 #define SHA1_SIZE	20
 
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+void initialize_openssl() {
+    SSL_load_error_strings();
+    OpenSSL_add_ssl_algorithms();
+}
+
+void cleanup_openssl() {
+    EVP_cleanup();
+}
+
+SSL_CTX *create_context() {
+    const SSL_METHOD *method;
+    SSL_CTX *ctx;
+
+    method = TLS_client_method();
+    ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        perror("Unable to create SSL context");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    return ctx;
+}
+
+void configure_context(SSL_CTX *ctx) {
+    // In a real application, you would set the verify paths and mode here
+    // SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+    if (!SSL_CTX_load_verify_locations(ctx, "ca.pem", NULL)) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+}
+
 void die ( const char * msg, ... )
 {
 	printf ( "*** error: " );
@@ -39,12 +76,19 @@ struct MysqlDriver_t
 	BYTE	*m_pReadBuf, *m_pReadCur, *m_pReadMax, m_dWriteBuf[8192], *m_pWriteBuf;
 	vector<string>	m_dFields, m_dRow;
 	string			m_sError;
+	SSL	*m_ssl;
 
 	MysqlDriver_t ( int iSock )
 	{ 
 		m_iSock = iSock;
 		m_pReadBuf = m_pReadCur = m_pReadMax = new BYTE [ MAX_PACKET ];
 		m_pWriteBuf = m_dWriteBuf;
+		m_ssl = NULL;
+	}
+
+	void set_ssl ( SSL *ssl )
+	{
+		m_ssl = ssl;
 	}
 
 	void ReadFrom ( int iLen, const char * sWhat )
@@ -53,9 +97,19 @@ struct MysqlDriver_t
 			die ( "packet too big while reading %s\n", sWhat );
 		m_pReadCur = m_pReadBuf;
 		m_pReadMax = m_pReadBuf + iLen;
-		if ( recv ( m_iSock, (char*)m_pReadBuf, iLen, 0 )!=iLen )
-			die ( "recv failed while reading %s: %s", sWhat, strerror(errno) ); // strerror fails on Windows, but who cares
+		
+		if (m_ssl )
+		{
+			if ( SSL_read ( m_ssl, (char*)m_pReadBuf, iLen )!=iLen )
+				die ( "SSL Read failed while reading %s: %s", sWhat, strerror(errno) ); // strerror fails on Windows, but who cares
+		}
+		else
+		{
+			if ( recv ( m_iSock, (char*)m_pReadBuf, iLen, 0 )!=iLen )
+				die ( "recv failed while reading %s: %s", sWhat, strerror(errno) ); // strerror fails on Windows, but who cares
+		}
 	}
+
 
 	BYTE GetByte ()
 	{
@@ -122,8 +176,16 @@ struct MysqlDriver_t
 	void Flush()
 	{
 		int iLen = m_pWriteBuf - m_dWriteBuf;
+		if(m_ssl)
+{
+		if ( SSL_write ( m_ssl, (char*)m_dWriteBuf, iLen )!=iLen )
+			die ( "SSL Write failed: %s", strerror(errno) );
+}
+else
+{
 		if ( send ( m_iSock, (char*)m_dWriteBuf, iLen, 0 )!=iLen )
 			die ( "send failed: %s", strerror(errno) );
+}
 		m_pWriteBuf = m_dWriteBuf;
 	}
 
@@ -131,6 +193,7 @@ struct MysqlDriver_t
 	{
 		ReadFrom ( 4, "packet header" );
 		int iLen = GetDword() & 0xffffff; // byte len[3], byte packet_no
+		printf("%d!\n",iLen);
 		ReadFrom ( iLen, "packet data" );
 		if ( PeekByte()==255 )
 		{
@@ -261,6 +324,14 @@ struct SHA1_t
 
 int main ( int argc, const char ** argv)
 {
+
+	SSL_CTX *ctx;
+	SSL *ssl;
+
+	initialize_openssl();
+	ctx = create_context();
+	configure_context(ctx);
+
 	const char *sHost = "localhost", *sUser = "root", *sPass = "password";
 	int iPort = 3306;
 	for ( int i=1; i+1<argc; i+=2 )
@@ -286,6 +357,7 @@ int main ( int argc, const char ** argv)
 	if ( iSock<0 || connect ( iSock, (sockaddr*)&sin, sizeof(sin) )<0 )
 		die ( "connection failed: %s", strerror(errno) );
 
+
 	// get and parse handshake packet
 	MysqlDriver_t db ( iSock );
 	db.ReadPacket();
@@ -309,8 +381,8 @@ int main ( int argc, const char ** argv)
 
 	// send auth packet
 	db.SendDword ( (1<<24) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
-	db.SendDword ( 0x4003F7CFUL ); // all CLIENT_xxx flags but SSL, COMPRESS, SSL_VERIFY_SERVER_CERT, NO_SCHEMA
-	//db.SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
+	//db.SendDword ( 0x4003F7CFUL ); // all CLIENT_xxx flags but SSL, COMPRESS, SSL_VERIFY_SERVER_CERT, NO_SCHEMA
+	db.SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
 	db.SendDword ( MAX_PACKET-1 ); // max_packet_size, 16 MB
 	db.SendByte ( uLang );
 	for ( int i=0; i<23; i++ )
@@ -332,10 +404,20 @@ int main ( int argc, const char ** argv)
 	}
 	db.SendByte ( 0 ); // just a trailing zero instead of a full DB name
 	db.Flush();
+	
+	//if ( db.ReadPacket()<0 )
+	//	die ( "auth failed: %s", db.m_sError.c_str() );
 
-	if ( db.ReadPacket()<0 )
-		die ( "auth failed: %s", db.m_sError.c_str() );
+	ssl = SSL_new(ctx);
+	SSL_set_fd(ssl, iSock); // iSock is your socket file descriptor
+	
+	if (SSL_connect(ssl) != 1) {
+		ERR_print_errors_fp(stderr);
+		exit(EXIT_FAILURE);
+	}
 
+	db.set_ssl(ssl);
+	
 	// action!
 	printf ( "connected to mysql %s\n\n", sVer.c_str() );
 	char q[4096];
