@@ -51,7 +51,7 @@ SSL_CTX *create_context() {
 
 void configure_context(SSL_CTX *ctx) {
     // In a real application, you would set the verify paths and mode here
-    // SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+    //SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
     SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
     if (!SSL_CTX_load_verify_locations(ctx, "ca.pem", NULL)) {
         ERR_print_errors_fp(stderr);
@@ -72,10 +72,10 @@ void die ( const char * msg, ... )
 
 struct MysqlDriver_t
 {
-	int		m_iSock, m_iCols;
+	int	m_iSock, m_iCols;
 	BYTE	*m_pReadBuf, *m_pReadCur, *m_pReadMax, m_dWriteBuf[8192], *m_pWriteBuf;
 	vector<string>	m_dFields, m_dRow;
-	string			m_sError;
+	string	m_sError;
 	SSL	*m_ssl;
 
 	MysqlDriver_t ( int iSock )
@@ -89,6 +89,15 @@ struct MysqlDriver_t
 	void set_ssl ( SSL *ssl )
 	{
 		m_ssl = ssl;
+	}
+
+	void debug_print(unsigned char *buf, int len )
+	{
+		for ( int i = 0; i < len; i++ )
+		{
+			printf("%02x", buf[i]);
+		}
+		printf("\n");
 	}
 
 	void ReadFrom ( int iLen, const char * sWhat )
@@ -177,15 +186,15 @@ struct MysqlDriver_t
 	{
 		int iLen = m_pWriteBuf - m_dWriteBuf;
 		if(m_ssl)
-{
-		if ( SSL_write ( m_ssl, (char*)m_dWriteBuf, iLen )!=iLen )
-			die ( "SSL Write failed: %s", strerror(errno) );
-}
-else
-{
-		if ( send ( m_iSock, (char*)m_dWriteBuf, iLen, 0 )!=iLen )
-			die ( "send failed: %s", strerror(errno) );
-}
+		{
+			if ( SSL_write ( m_ssl, (char*)m_dWriteBuf, iLen )!=iLen )
+				die ( "SSL Write failed: %s", strerror(errno) );
+		}
+		else
+		{
+			if ( send ( m_iSock, (char*)m_dWriteBuf, iLen, 0 )!=iLen )
+				die ( "send failed: %s", strerror(errno) );
+		}
 		m_pWriteBuf = m_dWriteBuf;
 	}
 
@@ -193,8 +202,9 @@ else
 	{
 		ReadFrom ( 4, "packet header" );
 		int iLen = GetDword() & 0xffffff; // byte len[3], byte packet_no
-		printf("%d!\n",iLen);
+		printf("len = %d\n", iLen);
 		ReadFrom ( iLen, "packet data" );
+		debug_print((unsigned char*)m_pReadCur, iLen);
 		if ( PeekByte()==255 )
 		{
 			m_sError = "mysql error: ";
@@ -379,6 +389,28 @@ int main ( int argc, const char ** argv)
 	if ( db.GetReadError() )
 		die ( "failed to parse mysql handshacke packet" );
 
+	//Send TLS request
+	db.SendDword ( (1<<24) + 4+4+1+23 +1 );
+	db.SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
+	db.SendDword ( MAX_PACKET-1 ); // max_packet_size, 16 MB
+	db.SendByte ( uLang );
+	for ( int i=0; i<23; i++ )
+		db.SendByte ( 0 ); // filler
+	db.SendByte ( 0 ); // just a trailing zero instead of a full DB name
+	db.Flush();
+
+	//The usual SSL exchange leading to establishing SSL connection
+	//Standard TLS handshake
+	ssl = SSL_new(ctx);
+	SSL_set_fd(ssl, iSock); // iSock is your socket file descriptor
+	
+	if (SSL_connect(ssl) != 1) {
+		ERR_print_errors_fp(stderr);
+		exit(EXIT_FAILURE);
+	}
+
+	db.set_ssl(ssl);
+
 	// send auth packet
 	db.SendDword ( (1<<24) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
 	//db.SendDword ( 0x4003F7CFUL ); // all CLIENT_xxx flags but SSL, COMPRESS, SSL_VERIFY_SERVER_CERT, NO_SCHEMA
@@ -404,19 +436,9 @@ int main ( int argc, const char ** argv)
 	}
 	db.SendByte ( 0 ); // just a trailing zero instead of a full DB name
 	db.Flush();
-	
-	//if ( db.ReadPacket()<0 )
-	//	die ( "auth failed: %s", db.m_sError.c_str() );
 
-	ssl = SSL_new(ctx);
-	SSL_set_fd(ssl, iSock); // iSock is your socket file descriptor
-	
-	if (SSL_connect(ssl) != 1) {
-		ERR_print_errors_fp(stderr);
-		exit(EXIT_FAILURE);
-	}
-
-	db.set_ssl(ssl);
+	if ( db.ReadPacket()<0 )
+		die ( "auth failed: %s", db.m_sError.c_str() );
 	
 	// action!
 	printf ( "connected to mysql %s\n\n", sVer.c_str() );
