@@ -11,6 +11,8 @@
 typedef unsigned char BYTE;
 typedef unsigned int DWORD;
 
+#include "tls_client_t.h"
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -41,8 +43,7 @@ SSL_CTX *create_context() {
     method = TLS_client_method();
     ctx = SSL_CTX_new(method);
     if (!ctx) {
-        perror("Unable to create SSL context");
-        ERR_print_errors_fp(stderr);
+        printf("Unable to create SSL context!\n");
         exit(EXIT_FAILURE);
     }
 
@@ -54,8 +55,8 @@ void configure_context(SSL_CTX *ctx) {
 	SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
 
 	//SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-	//if (!SSL_CTX_load_verify_locations(ctx, "ca.pem", NULL)) {
-	//	ERR_print_errors_fp(stderr);
+	//if (!SSL_CTX_load_verify_locations(ctx, "/tmp/ca.pem", NULL)) {
+	//	printf("SSL CTX Load Error!\n");
 	//	exit(EXIT_FAILURE);
 	//}
 }
@@ -67,7 +68,7 @@ void die ( const char * msg, ... )
 	va_start ( ap, msg );
 	vprintf ( msg, ap );
 	va_end ( ap );
-	printf ( "\n" );
+	printf ( "\n\n" );
 	exit ( 1 );
 }
 
@@ -333,7 +334,23 @@ struct SHA1_t
 	}
 };
 
-int main ( int argc, const char ** argv)
+unsigned long inet_addr2(const char *str)
+{
+    unsigned long lHost = 0;
+    char *pLong = (char *)&lHost;
+    char *p = (char *)str;
+    while (p)
+    {
+        *pLong++ = atoi(p);
+        p = strchr(p, '.');
+        if (p)
+            ++p;
+    }
+    return lHost;
+}
+
+
+int launch_tls_client(char* server_name, char* server_port)
 {
 
 	SSL_CTX *ctx;
@@ -345,6 +362,7 @@ int main ( int argc, const char ** argv)
 
 	const char *sHost = "localhost", *sUser = "root", *sPass = "password";
 	int iPort = 3306;
+	/*
 	for ( int i=1; i+1<argc; i+=2 )
 	{
 		if ( !strcmp ( argv[i], "-h" ) )		sHost = argv[i+1];
@@ -353,16 +371,19 @@ int main ( int argc, const char ** argv)
 		else if ( !strcmp ( argv[i], "-P" ) )	iPort = atoi(argv[i+1]);
 		else die ( "unknown switch %s\nusage: nanomysql [-h host] [-P port] [-u user] [-p password]", argv[i] );
 	}
+	*/
 
 	// resolve host, prepare socket
-	hostent * pHost = gethostbyname ( sHost );
-	if ( !pHost || pHost->h_addrtype!=AF_INET )
-		die ( "no AF_INET address found for %s", sHost );
+	//hostent * pHost = gethostbyname ( sHost );
+	//if ( !pHost || pHost->h_addrtype!=AF_INET )
+	//	die ( "no AF_INET address found for %s", sHost );
 
 	sockaddr_in sin;
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons ( iPort );
-	memcpy ( &sin.sin_addr, *(in_addr **)pHost->h_addr_list, sizeof(in_addr) );
+	//memcpy ( &sin.sin_addr, *(in_addr **)pHost->h_addr_list, sizeof(in_addr) );
+        sin.sin_addr.s_addr = inet_addr2(sHost);
+        memset(&(sin.sin_zero), sizeof(sin.sin_zero), 0);
 
 	int iSock = socket ( AF_INET, SOCK_STREAM, 0 );
 	if ( iSock<0 || connect ( iSock, (sockaddr*)&sin, sizeof(sin) )<0 )
@@ -406,7 +427,7 @@ int main ( int argc, const char ** argv)
 	SSL_set_fd(ssl, iSock); // iSock is your socket file descriptor
 	
 	if (SSL_connect(ssl) != 1) {
-		ERR_print_errors_fp(stderr);
+		printf("SSL connections failed!\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -475,7 +496,7 @@ int main ( int argc, const char ** argv)
 		{
 			for ( size_t i=0; i<db.m_dRow.size(); i++ )
 				printf ( "%s%s", i ? ", " : "", db.m_dRow[i].c_str() );
-			printf ( "\n" );
+			printf ( "\n\n" );
 			n++;
 		}
 		printf ( "---\nok, %d row(s)\n\n", n );
