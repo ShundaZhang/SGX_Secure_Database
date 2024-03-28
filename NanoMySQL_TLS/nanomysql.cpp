@@ -203,9 +203,9 @@ struct MysqlDriver_t
 	{
 		ReadFrom ( 4, "packet header" );
 		int iLen = GetDword() & 0xffffff; // byte len[3], byte packet_no
-		printf("len = %d\n", iLen);
+		//printf("len = %d\n", iLen);
 		ReadFrom ( iLen, "packet data" );
-		debug_print((unsigned char*)m_pReadCur, iLen);
+		//debug_print((unsigned char*)m_pReadCur, iLen);
 		if ( PeekByte()==255 )
 		{
 			m_sError = "mysql error: ";
