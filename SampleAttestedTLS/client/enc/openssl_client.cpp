@@ -26,10 +26,16 @@ using namespace std;
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/bio.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
 
 void initialize_openssl() {
-    SSL_load_error_strings();
+    SSL_library_init();
     OpenSSL_add_ssl_algorithms();
+    SSL_load_error_strings();
+    ERR_load_crypto_strings();
+
 }
 
 void cleanup_openssl() {
@@ -50,15 +56,37 @@ SSL_CTX *create_context() {
     return ctx;
 }
 
+void load_certificate_from_memory(SSL_CTX* ctx, char* ca_data) {
+    BIO* bio = BIO_new_mem_buf((void*)ca_data, -1);
+    X509* cert = PEM_read_bio_X509(bio, NULL, 0, NULL);
+    if (!cert) {
+        fprintf(stderr, "Error loading certificate from memory\n");
+        BIO_free(bio);
+        exit(EXIT_FAILURE);
+    }
+    BIO_free(bio);
+
+    X509_STORE* store = SSL_CTX_get_cert_store(ctx);
+    if (!X509_STORE_add_cert(store, cert)) {
+        fprintf(stderr, "Error adding certificate to store\n");
+        X509_free(cert);
+        exit(EXIT_FAILURE);
+    }
+    X509_free(cert);
+}
+
 void configure_context(SSL_CTX *ctx) {
 	// In a real application, you would set the verify paths and mode here
-	SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+	//SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
 
-	//SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
 	//if (!SSL_CTX_load_verify_locations(ctx, "/tmp/ca.pem", NULL)) {
 	//	printf("SSL CTX Load Error!\n");
 	//	exit(EXIT_FAILURE);
 	//}
+
+	char ca[] = "-----BEGIN CERTIFICATE-----\nMIIDBjCCAe6gAwIBAgIBATANBgkqhkiG9w0BAQsFADA8MTowOAYDVQQDDDFNeVNRTF9TZXJ2ZXJfOC4wLjM2X0F1dG9fR2VuZXJhdGVkX0NBX0NlcnRpZmljYXRlMB4XDTI0MDMxOTA1MTQ1NFoXDTM0MDMxNzA1MTQ1NFowPDE6MDgGA1UEAwwxTXlTUUxfU2VydmVyXzguMC4zNl9BdXRvX0dlbmVyYXRlZF9DQV9DZXJ0aWZpY2F0ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJXR2Me3HfswVEqlc24AJkhcEOey1Hu4JIsf065Gwe+7qzbttdnSdhmDHnI92fqaapW/uUxJqp8x9/xjZHUlYG4MZyV++L4ZmROlGFL1p1zjGtJFFci2J4nw/04qH+8RXSGeCGDW+7YpgEwGn0yPAfRRXP0QOknfjD3Ak9ZFhNjgySJN/hj5/wn7mPcBcfNio35erKkMpcXjtRbzwYNGT+r+xMbxXCDvcVtysRB7ttP3b8N2Gjs7CeEqQCRxF/PuwunAj+aGTgzdEqSZgROdVbp8xtZfULHCQI1JsKqYzzkMKU0rkWjMF7Sg2lTsGwhX1QnysP8pJQ1X9P/cX8U9K6MCAwEAAaMTMBEwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEARznQ44XeJJjlqQRcR/WzBICxHNozDfSOZ3sNQOPw6diX6N4BAcfaCeWCKki2YiEBOWFQ+T4Tac/DWUHC2pVr4GwQzqQPg9dtHvqk5LXv0PFwN/uWRmlv8ThNJ/VcScJOZR6wEO2LfBJezpfppNc+x6RjBZR70cXr8mt820MLrLE3OVDOSgCUYXAH6PAXqo1W2/UJtQl6yhgUxcmDH+N2gWNaXWL8IHRvHfrIKo+QWjrkmzMzYTwNoc1UI0R7XwMNb4GR8d7OSThrf6XA/9J3jP8AcoOHKH7yUghR/zZM+anoaJMvqSr9F0NfZKWs0qSQ+Wx0E9710mWUBDvhLQbppQ==\n-----END CERTIFICATE-----\n";
+        load_certificate_from_memory(ctx, ca);
 }
 
 void die ( const char * msg, ... )
@@ -360,9 +388,11 @@ int launch_tls_client(char* server_name, char* server_port)
 	ctx = create_context();
 	configure_context(ctx);
 
+	const char *sHost = server_name, *sUser = "root", *sPass = "password";
+	int iPort = atoi(server_port);
+	/*
 	const char *sHost = "localhost", *sUser = "root", *sPass = "password";
 	int iPort = 3306;
-	/*
 	for ( int i=1; i+1<argc; i+=2 )
 	{
 		if ( !strcmp ( argv[i], "-h" ) )		sHost = argv[i+1];
@@ -501,4 +531,6 @@ int launch_tls_client(char* server_name, char* server_port)
 		}
 		printf ( "---\nok, %d row(s)\n\n", n );
 	}
+
+	return 0;
 }
