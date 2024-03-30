@@ -10,6 +10,7 @@
 #include <errno.h>
 typedef unsigned char BYTE;
 typedef unsigned int DWORD;
+#define MAX_SIZE 4096
 
 #include "tls_client_t.h"
 
@@ -75,6 +76,39 @@ void load_certificate_from_memory(SSL_CTX* ctx, const char* ca_data) {
     X509_free(cert);
 }
 
+int readFileToStackArray(const char *filename, char arr[], int max_size) {
+/* 
+   int fd = 0;
+    const mode_t MODE = 0644;
+    const int flags = O_RDONLY;
+    
+    if((fd = open(filename, flags, MODE)) == -1)
+    {
+        printf("Error opening file: %s\n", filename);
+        return -1;
+    }
+
+    int bytesRead = read(fd, arr, max_size);
+    arr[bytesRead] = '\0';
+
+    close(fd);
+    return bytesRead;
+*/
+
+   FILE *file = fopen(filename, "r");
+    if (!file) {
+        printf("Error opening file: %s\n", filename);
+        return -1; 
+    }
+
+    int bytesRead = fread(arr, sizeof(char), max_size - 1, file); 
+    arr[bytesRead] = '\0'; 
+
+    fclose(file);
+    return bytesRead; 
+}
+
+
 void configure_context(SSL_CTX *ctx) {
 	//1) No Verify
 	// In a real application, you would set the verify paths and mode here
@@ -94,11 +128,38 @@ void configure_context(SSL_CTX *ctx) {
 
 	//3) cert + pri-key for edb
 	// Assuming cert and pkey are null-terminated strings
-	const char ca[] = "-----BEGIN CERTIFICATE-----\nMIIBlzCCATygAwIBAgIQdrxnpIjN0Lp8C6e9vGf3qzAKBggqhkjOPQQDAjAnMREwDwYDVQQKEwhFREIgcm9vdDESMBAGA1UEAxMJbG9jYWxob3N0MCAYDzAwMDEwMTAxMDAwMDAwWhcNMzQwMzMwMDExNTAwWjAnMREwDwYDVQQKEwhFREIgcm9vdDESMBAGA1UEAxMJbG9jYWxob3N0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAExTaO7lqb3pP6ViXXb4VfEATX2W4ZmFK6h5lWY1+07dOWq+1fcVjl2AAKFBpryTIQbxZtLOTzGFMQ6cw782jZi6NIMEYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUX+7XBt6WSAshOcj+1FKY7OHWmLowFAYDVR0RBA0wC4IJbG9jYWxob3N0MAoGCCqGSM49BAMCA0kAMEYCIQC6/pUqQS9OGzPAb2qXZ+j+JpaxyE7f6SWR/cQep5669gIhAN0tw7ANRpzsgTeDZyFpxyu/t1L6sKrXtZlVwWfzZ7vU\n-----END CERTIFICATE-----\n";
+	//const char ca[] = "-----BEGIN CERTIFICATE-----\nMIIBlTCCATygAwIBAgIQFrd7F9hotNzZ2MXNVBoqeTAKBggqhkjOPQQDAjAnMREw\nDwYDVQQKEwhFREIgcm9vdDESMBAGA1UEAxMJbG9jYWxob3N0MCAYDzAwMDEwMTAxMDAwMDAwWhcNMzQwMzMwMDgxODExWjAnMREwDwYDVQQKEwhFREIgcm9vdDESMBAGA1UEAxMJbG9jYWxob3N0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEe/k20N2EFDOj1NNLAaf57U+KpBcfZZr11ejLoSEegze7GKoGfw5hatttoTLAyDl8C7kGmdDR2pXOVX5iTSulyqNIMEYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUiG/CTgYk1vpxFofcN2qgcroB6igwFAYDVR0RBA0wC4IJbG9jYWxob3N0MAoGCCqGSM49BAMCA0cAMEQCICNo6inEOPODRrt6ROhDL9ApzPlhKlme3S182AvY1mP0AiAD/6r790lMKZlPdi2L3gSWKsZhrkLLf7PgDguhfgOCJQ==\n-----END CERTIFICATE-----\n";
+	char ca[MAX_SIZE] = {0};
+	const char *fca_name = "edb.pem";
+	int bytesRead = -1;
+
+	bytesRead = readFileToStackArray(fca_name, ca, MAX_SIZE);
+	if (bytesRead == -1) {
+		printf("Failed to CA file.\n");
+		exit(EXIT_FAILURE);
+	}
+
 	load_certificate_from_memory(ctx, ca);
 
-	const char cert[] = "-----BEGIN CERTIFICATE-----\nMIICqjCCAZICFBexyZwtMlWYy1hEuNif9g+mePTeMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNVBAMMBU15IENBMB4XDTI0MDIwMjA2MDMwN1oXDTM0MDEzMDA2MDMwN1owEzERMA8GA1UEAwwIcm9vdHVzZXIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDTGxFkvnJ9nrbfZkCs4X0aJjJH3ABDcGX5jYS4zwp4RSJIgHhoGXYRNjZfOZAicF0ZQTHd0YbA603MANKw/aYOmLPKoq5IRVRNy4QFN5sZ9+NbXndxqbKJtDAJmQG9UpEZ1No9glbA2mRjPGYQ64j+uHl5fSqBRBOyLPEx60Fw8Nv7tODy/EUhxOvUawUBTgWZg8U0hTrfHrl1mhU7SDgCsb3GMxomrk5y+9/H2ubYE8E9EavCltrs8ky9BSN8DXVs5XpZ2jdqimNZAj3rZev6OdcGITFpOweZA8JB8fXg8dfCPvhxt3iKpsptQQ/5v2ommMDpqOFnucgM+jTAUdMpAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAEHExA8T2st1v1WmOOxPsksoS9/1mBMKBMiMWFMtCuUM32wMqUtTBxwHZlbPTotTIl4N+TWz6m0TcJ6h2Ln9qjJKpP9VbHuWTe+G8qPQobOfhpx31iEf5T2JxXXn99+bhlf+dWUtP1D0spil/6qafpGawQtsbfatWuvGr+nSSuiALva4F16iVBrby471cUugDPo5VsCwz9m+uhMq7evVOJ8KE2YMcvMpf1bXO6ofxNep2vbpuQ1E25f3ayAnt6Y0StgFAi+Hil5In3WaRPEpVtgZiwZSAVYRQ2DTP9wxowI0Gmsy1ETYI2MkjP9u1Ldejymg+kPpEq/CbEn/w3VevVk=\n-----END CERTIFICATE-----\n";
-	const char pkey[] = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTGxFkvnJ9nrbfZkCs4X0aJjJH3ABDcGX5jYS4zwp4RSJIgHhoGXYRNjZfOZAicF0ZQTHd0YbA603MANKw/aYOmLPKoq5IRVRNy4QFN5sZ9+NbXndxqbKJtDAJmQG9UpEZ1No9glbA2mRjPGYQ64j+uHl5fSqBRBOyLPEx60Fw8Nv7tODy/EUhxOvUawUBTgWZg8U0hTrfHrl1mhU7SDgCsb3GMxomrk5y+9/H2ubYE8E9EavCltrs8ky9BSN8DXVs5XpZ2jdqimNZAj3rZev6OdcGITFpOweZA8JB8fXg8dfCPvhxt3iKpsptQQ/5v2ommMDpqOFnucgM+jTAUdMpAgMBAAECggEAYXo2slukNzAxxf8LryhhoVDw17CU6I7+b1hy5/kmHvnhRjQYJQ1YsMLlIVxNmzFiM7agZYoJ3IvqfOAGaZZ99nB5WIB81D87Gb73I4eVFU0azQZWRgQzPhWXNt9RZ8+304MvEMbd8ygEwbPSd06jD+czpC7xEQZTx+qrpr64FYMzfwmfnWMGxtBnhtfn/7NjtzStB4DT/nwpCleJxG7behtTY0VGTd9thY50njhhYPRJlL1VHowWfc5aKGIAdsPCVQU7UhGrT+etLvmJTsWV2QqiNnDm+982NhlZ8fUfp+VTIKpTevGuipBjGVwwZ0rl81mnuTWgXGXQ/YI3InVtDwKBgQDsyHrN7iEYUQ88TTes9zftiUfk05+BgAdzDDrJkg6g5NQkACz7COXyr3YCdC8bM0boptzsmEOAMJS52IE4yswFDkVZ/pjS4GYuhWDIUpQB+ns1vrs5cdXoR7GgPfqcqDo0BXMFPvKPeSe94oJVXimLRtg4qS1f0PXK7z3AiuL93wKBgQDkPRo36UJ/yLn/Rk2op3lIj7vL1kvsqvN2DUJhNkvM4tppVUTSy/9gVhgR+2qXorR8gPtNlWfHoOtxBc1tfg1SotJsm9PeDGGWop5BSNGJXkOLhBYi1UNcARBrGpC/5lNGV/nC/kap7qxH85yo8KcN4K6GflGxrnfF4XbKzcs/9wKBgQC+yVLZ9xPHihjil71Squfvh3vcTv/o0oYuFx6PKBaNYZPlZhbYNvVBNEu78m26Vvi9oSXFpXJOKdbMYDzOy+jT8gnDV7c/wvvSZDn1b0Q+y9rXFVW6FZUr0gi3evkhnRM4s2NYSL4dCJwTDh3CN1r2FCFIllgvKinCWD7Dk6UOtQKBgDEjrqdnAzg74T/CxSmQlR44Q/iI9OPJko1SIX6IkB1WoiuXfi/cV+lH3/rPJI3tK+q6YmC70BI85TP6SdZPE1M9VwynKCBgjgo+jNAFe4eV0fkRwSpSvCPs3roQiCWo0zkL6+w9jr07c8AyBQKifXURcMHoJHKa25KxDkBvuljVAoGAUC75D8iZYqS96FPZC2CLyEFaDA1FgjadiPQuJL9op5mH76GZ2hfwBFl/LApfWFGjSrdK5h/9vs4djv2NSLSkZR9Gq46Jbg5LsENzeOAez0VERTK2VvkLtBNwpG+C51e57xbrMhqPJ8K9yemqqZDqcxuERY72HA8W6eaLzEJuRg4=\n-----END PRIVATE KEY-----\n";
+	char cert[MAX_SIZE] = {0};
+	char pkey[MAX_SIZE] = {0};
+	const char *fcert_name = "cert.pem";
+	const char *fpkey_name = "key.pem";
+	
+	bytesRead = readFileToStackArray(fcert_name, cert, MAX_SIZE);
+	if (bytesRead == -1) {
+		printf("Failed to Cert file.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	bytesRead = readFileToStackArray(fpkey_name, pkey, MAX_SIZE);
+	if (bytesRead == -1) {
+		printf("Failed to Private Key file.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	//const char cert[] = "-----BEGIN CERTIFICATE-----\nMIICqjCCAZICFBexyZwtMlWYy1hEuNif9g+mePTeMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNVBAMMBU15IENBMB4XDTI0MDIwMjA2MDMwN1oXDTM0MDEzMDA2MDMwN1owEzERMA8GA1UEAwwIcm9vdHVzZXIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDTGxFkvnJ9nrbfZkCs4X0aJjJH3ABDcGX5jYS4zwp4RSJIgHhoGXYRNjZfOZAicF0ZQTHd0YbA603MANKw/aYOmLPKoq5IRVRNy4QFN5sZ9+NbXndxqbKJtDAJmQG9UpEZ1No9glbA2mRjPGYQ64j+uHl5fSqBRBOyLPEx60Fw8Nv7tODy/EUhxOvUawUBTgWZg8U0hTrfHrl1mhU7SDgCsb3GMxomrk5y+9/H2ubYE8E9EavCltrs8ky9BSN8DXVs5XpZ2jdqimNZAj3rZev6OdcGITFpOweZA8JB8fXg8dfCPvhxt3iKpsptQQ/5v2ommMDpqOFnucgM+jTAUdMpAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAEHExA8T2st1v1WmOOxPsksoS9/1mBMKBMiMWFMtCuUM32wMqUtTBxwHZlbPTotTIl4N+TWz6m0TcJ6h2Ln9qjJKpP9VbHuWTe+G8qPQobOfhpx31iEf5T2JxXXn99+bhlf+dWUtP1D0spil/6qafpGawQtsbfatWuvGr+nSSuiALva4F16iVBrby471cUugDPo5VsCwz9m+uhMq7evVOJ8KE2YMcvMpf1bXO6ofxNep2vbpuQ1E25f3ayAnt6Y0StgFAi+Hil5In3WaRPEpVtgZiwZSAVYRQ2DTP9wxowI0Gmsy1ETYI2MkjP9u1Ldejymg+kPpEq/CbEn/w3VevVk=\n-----END CERTIFICATE-----\n";
+	//const char pkey[] = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDTGxFkvnJ9nrbfZkCs4X0aJjJH3ABDcGX5jYS4zwp4RSJIgHhoGXYRNjZfOZAicF0ZQTHd0YbA603MANKw/aYOmLPKoq5IRVRNy4QFN5sZ9+NbXndxqbKJtDAJmQG9UpEZ1No9glbA2mRjPGYQ64j+uHl5fSqBRBOyLPEx60Fw8Nv7tODy/EUhxOvUawUBTgWZg8U0hTrfHrl1mhU7SDgCsb3GMxomrk5y+9/H2ubYE8E9EavCltrs8ky9BSN8DXVs5XpZ2jdqimNZAj3rZev6OdcGITFpOweZA8JB8fXg8dfCPvhxt3iKpsptQQ/5v2ommMDpqOFnucgM+jTAUdMpAgMBAAECggEAYXo2slukNzAxxf8LryhhoVDw17CU6I7+b1hy5/kmHvnhRjQYJQ1YsMLlIVxNmzFiM7agZYoJ3IvqfOAGaZZ99nB5WIB81D87Gb73I4eVFU0azQZWRgQzPhWXNt9RZ8+304MvEMbd8ygEwbPSd06jD+czpC7xEQZTx+qrpr64FYMzfwmfnWMGxtBnhtfn/7NjtzStB4DT/nwpCleJxG7behtTY0VGTd9thY50njhhYPRJlL1VHowWfc5aKGIAdsPCVQU7UhGrT+etLvmJTsWV2QqiNnDm+982NhlZ8fUfp+VTIKpTevGuipBjGVwwZ0rl81mnuTWgXGXQ/YI3InVtDwKBgQDsyHrN7iEYUQ88TTes9zftiUfk05+BgAdzDDrJkg6g5NQkACz7COXyr3YCdC8bM0boptzsmEOAMJS52IE4yswFDkVZ/pjS4GYuhWDIUpQB+ns1vrs5cdXoR7GgPfqcqDo0BXMFPvKPeSe94oJVXimLRtg4qS1f0PXK7z3AiuL93wKBgQDkPRo36UJ/yLn/Rk2op3lIj7vL1kvsqvN2DUJhNkvM4tppVUTSy/9gVhgR+2qXorR8gPtNlWfHoOtxBc1tfg1SotJsm9PeDGGWop5BSNGJXkOLhBYi1UNcARBrGpC/5lNGV/nC/kap7qxH85yo8KcN4K6GflGxrnfF4XbKzcs/9wKBgQC+yVLZ9xPHihjil71Squfvh3vcTv/o0oYuFx6PKBaNYZPlZhbYNvVBNEu78m26Vvi9oSXFpXJOKdbMYDzOy+jT8gnDV7c/wvvSZDn1b0Q+y9rXFVW6FZUr0gi3evkhnRM4s2NYSL4dCJwTDh3CN1r2FCFIllgvKinCWD7Dk6UOtQKBgDEjrqdnAzg74T/CxSmQlR44Q/iI9OPJko1SIX6IkB1WoiuXfi/cV+lH3/rPJI3tK+q6YmC70BI85TP6SdZPE1M9VwynKCBgjgo+jNAFe4eV0fkRwSpSvCPs3roQiCWo0zkL6+w9jr07c8AyBQKifXURcMHoJHKa25KxDkBvuljVAoGAUC75D8iZYqS96FPZC2CLyEFaDA1FgjadiPQuJL9op5mH76GZ2hfwBFl/LApfWFGjSrdK5h/9vs4djv2NSLSkZR9Gq46Jbg5LsENzeOAez0VERTK2VvkLtBNwpG+C51e57xbrMhqPJ8K9yemqqZDqcxuERY72HA8W6eaLzEJuRg4=\n-----END PRIVATE KEY-----\n";
 
 	BIO *cert_bio = BIO_new_mem_buf((void*)cert, -1); // -1 for null-terminated string
 	X509 *cert_x509 = PEM_read_bio_X509(cert_bio, NULL, 0, NULL);
