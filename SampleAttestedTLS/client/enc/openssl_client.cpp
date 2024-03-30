@@ -644,7 +644,7 @@ int launch_tls_client(char* server_name, char* server_port)
 		for ( size_t i=0; i<db.m_dFields.size(); i++ )
 			printf ( "%s%s", i ? ", " : "", db.m_dFields[i].c_str() );
 		if ( db.m_dFields.size() )
-			printf ( "\n---\n" );
+			printf ( "\n\n---\n\n" );
 		while ( db.FetchRow() )
 		{
 			for ( size_t i=0; i<db.m_dRow.size(); i++ )
@@ -652,7 +652,7 @@ int launch_tls_client(char* server_name, char* server_port)
 			printf ( "\n\n" );
 			n++;
 		}
-		printf ( "---\nok, %d row(s)\n\n", n );
+		printf ( "---\n\nok, %d row(s)\n\n", n );
 	}
 
 	return 0;
