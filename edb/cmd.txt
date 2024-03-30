@@ -3,6 +3,12 @@ docker run -t --name my-edb -e PCCS_URL=https://10.239.166.47:8081/sgx/certifica
 
 era:
 curl -k --data-binary @manifest.json https://localhost:8080/manifest
-mysql -uroot -h127.0.0.1 -P3307 -ppassword --ssl-cert cert.pem --ssl-key key.pem
+mysql -uroot -h127.0.0.1 -P3307 --ssl-cert cert.pem --ssl-key key.pem
 
+era -skip-quote -c edgelessdb-sgx.json -h localhost:8080 -output-root edb.pem
+curl --cacert edb.pem --data-binary @manifest.json https://localhost:8080/manifest
+mysql -uroot -h127.0.0.1 -P3307 --ssl-ca edb.pem --ssl-cert cert.pem --ssl-key key.pem
 
+sql:
+ALTER USER 'root'@'%' IDENTIFIED BY 'password';
+FLUSH PRIVILEGES;
