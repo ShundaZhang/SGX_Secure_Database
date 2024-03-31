@@ -54,7 +54,7 @@ void configure_context(SSL_CTX *ctx) {
 	//SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
 
 	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-	if (!SSL_CTX_load_verify_locations(ctx, "/tmp/ca.pem", NULL)) {
+	if (!SSL_CTX_load_verify_locations(ctx, "ca.pem", NULL)) {
 		ERR_print_errors_fp(stderr);
 		exit(EXIT_FAILURE);
 	}

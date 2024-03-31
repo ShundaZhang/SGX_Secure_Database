@@ -5,10 +5,25 @@ era:
 curl -k --data-binary @manifest.json https://localhost:8080/manifest
 mysql -uroot -h127.0.0.1 -P3307 --ssl-cert cert.pem --ssl-key key.pem
 
+#if without quote
 era -skip-quote -c edgelessdb-sgx.json -h localhost:8080 -output-root edb.pem
+#with quote verification
+era -c edgelessdb-sgx.json -h localhost:8080 -output-root edb.pem -allow-tcb-status=OutOfDateConfigurationNeeded
 curl --cacert edb.pem --data-binary @manifest.json https://localhost:8080/manifest
 mysql -uroot -h127.0.0.1 -P3307 --ssl-ca edb.pem --ssl-cert cert.pem --ssl-key key.pem
 
 sql:
 ALTER USER 'root'@'%' IDENTIFIED BY 'password';
 FLUSH PRIVILEGES;
+
+#era update, need latest quote verification code in openenclave/edgelessrt
+#rebuild era
+ERT_DEB=edgelessrt_0.4.3_amd64_ubuntu-$(lsb_release -rs).deb
+wget https://github.com/edgelesssys/edgelessrt/releases/download/v0.4.3/$ERT_DEB
+sudo apt install ./$ERT_DEB build-essential cmake libssl-dev
+
+. /opt/edgelessrt/share/openenclave/openenclaverc
+cd era/src/cmd/era
+go build
+
+era -c edgelessdb-sgx.json -h localhost:8080 -output-root edb.pem -allow-tcb-status=OutOfDateConfigurationNeeded
