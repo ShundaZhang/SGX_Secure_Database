@@ -2,11 +2,13 @@ edb:
 docker run -t --name my-edb -e PCCS_URL=https://10.239.166.47:8081/sgx/certification/v4/ -p3307:3306 -p8080:8080 --device /dev/sgx_enclave --device /dev/sgx_provision ghcr.io/edgelesssys/edgelessdb-sgx-1gb
 
 era:
-curl -k --data-binary @manifest.json https://localhost:8080/manifest
-mysql -uroot -h127.0.0.1 -P3307 --ssl-cert cert.pem --ssl-key key.pem
+era -c edgelessdb-sgx.json -h localhost:8080 -output-root edb.pem -allow-tcb-status=OutOfDateConfigurationNeeded
 
 #if without quote
 era -skip-quote -c edgelessdb-sgx.json -h localhost:8080 -output-root edb.pem
+curl -k --data-binary @manifest.json https://localhost:8080/manifest
+mysql -uroot -h127.0.0.1 -P3307 --ssl-cert cert.pem --ssl-key key.pem
+
 #with quote verification
 era -c edgelessdb-sgx.json -h localhost:8080 -output-root edb.pem -allow-tcb-status=OutOfDateConfigurationNeeded
 curl --cacert edb.pem --data-binary @manifest.json https://localhost:8080/manifest
@@ -25,5 +27,3 @@ sudo apt install ./$ERT_DEB build-essential cmake libssl-dev
 . /opt/edgelessrt/share/openenclave/openenclaverc
 cd era/src/cmd/era
 go build
-
-era -c edgelessdb-sgx.json -h localhost:8080 -output-root edb.pem -allow-tcb-status=OutOfDateConfigurationNeeded
