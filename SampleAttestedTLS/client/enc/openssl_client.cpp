@@ -472,7 +472,7 @@ unsigned long inet_addr2(const char *str)
 }
 
 
-int launch_tls_client(char* server_name, char* server_port)
+int launch_tls_client(char* server_name, char* server_port, const char* input_file, const char* output_file)
 {
 
 	SSL_CTX *ctx;
@@ -603,6 +603,8 @@ int launch_tls_client(char* server_name, char* server_port)
 	// action!
 	printf ( "connected to mysql %s\n\n", sVer.c_str() );
 	char q[4096];
+	// interactive demo
+	/*
 	for ( ;; )
 	{
 		printf ( "nanomysql> " );
@@ -630,6 +632,48 @@ int launch_tls_client(char* server_name, char* server_port)
 			n++;
 		}
 		printf ( "---\n\nok, %d row(s)\n\n", n );
+	}
+	 */
+
+	FILE *input = fopen(input_file, "r");
+	if (!input) {
+		fprintf(stderr, "Error: Failed to open input file %s.\n", input_file);
+		return 1;
+	}
+
+	FILE *output = fopen(output_file, "w");
+	if (!output) {
+		fprintf(stderr, "Error: Failed to open output file %s.\n", output_file);
+		return 1;
+	}
+	
+	for ( ;; )
+	{
+		//printf ( "nanomysql> " );
+		//fflush ( stdout );
+		if ( !fgets ( q, sizeof(q), input ) || !strcmp ( q, "quit\n" ) || !strcmp ( q, "exit\n" ) )
+		{
+			fprintf ( output, "bye\n\n" );
+			break;
+		}
+		if ( !db.Query(q) )
+		{
+			fprintf ( output, "error: %s\n\n", db.m_sError.c_str() );
+			continue;
+		}
+		int n = 0;
+		for ( size_t i=0; i<db.m_dFields.size(); i++ )
+			fprintf ( output, "%s%s", i ? ", " : "", db.m_dFields[i].c_str() );
+		if ( db.m_dFields.size() )
+			fprintf ( output, "\n\n---\n\n" );
+		while ( db.FetchRow() )
+		{
+			for ( size_t i=0; i<db.m_dRow.size(); i++ )
+				fprintf ( output, "%s%s", i ? ", " : "", db.m_dRow[i].c_str() );
+			fprintf ( output, "\n\n" );
+			n++;
+		}
+		fprintf ( output, "---\n\nok, %d row(s)\n\n", n );
 	}
 
 	return 0;

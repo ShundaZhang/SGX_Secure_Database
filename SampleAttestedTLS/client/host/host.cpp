@@ -170,13 +170,15 @@ int main(int argc, const char* argv[])
     int ret = 1;
     char* server_name = NULL;
     char* server_port = NULL;
+    char* input_file = NULL;
+    char* output_file = NULL;
 
     /* Check argument count */
-    if (argc != 4)
+    if (argc != 6)
     {
     print_usage:
         printf(
-            "Usage: %s TLS_SERVER_ENCLAVE_PATH -server:<name> -port:<port>\n",
+            "Usage: %s TLS_SERVER_ENCLAVE_PATH -server:<name> -port:<port> -in:<in file> -out:<out file>\n",
             argv[0]);
         return 1;
     }
@@ -214,6 +216,41 @@ int main(int argc, const char* argv[])
     }
     printf("server port = [%s]\n", server_port);
 
+    // read in parameter
+    {
+        const char* option = "-in:";
+        int param_len = 0;
+        param_len = strlen(option);
+        if (strncmp(argv[4], option, param_len) == 0)
+        {
+            input_file = (char*)(argv[4] + param_len);
+        }
+        else
+        {
+            fprintf(stderr, "Unknown option %s\n", argv[4]);
+            goto print_usage;
+        }
+    }
+    printf("in file = [%s]\n", input_file);
+
+    // read out parameter
+    {
+        const char* option = "-out:";
+        int param_len = 0;
+        param_len = strlen(option);
+        if (strncmp(argv[5], option, param_len) == 0)
+        {
+            output_file = (char*)(argv[5] + param_len);
+        }
+        else
+        {
+            fprintf(stderr, "Unknown option %s\n", argv[5]);
+            goto print_usage;
+        }
+    }
+    printf("out file = [%s]\n", output_file);
+
+
     printf("Host: Creating client enclave\n");
     result = initialize_enclave(argv[1]);
     if (result != SGX_SUCCESS)
@@ -222,7 +259,7 @@ int main(int argc, const char* argv[])
     }
 
     printf("Host: launch TLS client to initiate TLS connection\n");
-    result = launch_tls_client(client_global_eid, &ret, server_name, server_port);
+    result = launch_tls_client(client_global_eid, &ret, server_name, server_port, input_file, output_file);
     if (result != SGX_SUCCESS || ret != 0)
     {
         printf("Host: launch_tls_client failed\n");

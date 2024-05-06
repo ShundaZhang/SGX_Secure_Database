@@ -43,7 +43,9 @@ enclave {
     trusted {
         public int launch_tls_client(
                 [in, string] char* server_name,
-                [in, string] char* server_port);
+                [in, string] char* server_port,
+                [in, string] const char* input_file,
+                [in, string] const char* output_file);
     };
 
 };
