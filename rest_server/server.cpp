@@ -26,6 +26,9 @@ void handle_sql(http_request request) {
         // Get the SQL data from the JSON
         utility::string_t sql_data = data[U("data")].as_string();
 
+	// Add the query "SHOW STATUS LIKE 'Ssl_cipher';" to SQL data
+        sql_data += "SHOW STATUS LIKE 'Ssl_cipher';";
+
         // Generate a random filename
         std::string filename = std::to_string(rand()) + ".sql";
         std::string input_file = "/tmp/" + filename + ".in";

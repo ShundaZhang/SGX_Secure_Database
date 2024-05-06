@@ -24,6 +24,9 @@ def sql():
         sql_data = data.get('data')
         if not sql_data:
             return 'No SQL data provided'
+	
+	#Add the query "SHOW STATUS LIKE 'Ssl_cipher';" to SQL data
+        sql_data += "SHOW STATUS LIKE 'Ssl_cipher';";
 
         # Generate a random filename
         filename = f"{random.randint(1, 1000000)}.sql"
