@@ -90,17 +90,37 @@ void handle_sql(http_request request) {
 	sgx_status_t result = SGX_SUCCESS;
 	int ret = 1;
 	printf("Host: launch TLS client to initiate TLS connection\n");
-	result = launch_tls_client(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str(), input_file.c_str(), output_file.c_str());
-	if (result != SGX_SUCCESS || ret != 0)
+	//result = launch_tls_client(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str(), input_file.c_str(), output_file.c_str());
+
+	result = get_db_flag(client_global_eid, &ret);
+	if (result != SGX_SUCCESS)
 	{
-		printf("Host: launch_tls_client failed\n");
+		printf("Host: get_db_flag failed\n");
 		terminate_enclave();
 	}
-        
+
+	if(!ret)
+	{
+		result = init_db_connect(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str());
+		if (result != SGX_SUCCESS || ret != 0)
+		{
+			printf("Host: init_db_connect failed\n");
+			terminate_enclave();
+		}
+	}
+
+	result = exec_db_sql(client_global_eid, &ret, input_file.c_str(), output_file.c_str());
+	if (result != SGX_SUCCESS || ret != 0)
+	{
+		printf("Host: exec_db_sql failed\n");
+		terminate_enclave();
+	}
+
+
 	// Read client output
-        std::ifstream output_stream(output_file);
-        std::string output_content((std::istreambuf_iterator<char>(output_stream)), std::istreambuf_iterator<char>());
-        output_stream.close();
+	std::ifstream output_stream(output_file);
+	std::string output_content((std::istreambuf_iterator<char>(output_stream)), std::istreambuf_iterator<char>());
+	output_stream.close();
 
         // Construct JSON response
         json::value response;
