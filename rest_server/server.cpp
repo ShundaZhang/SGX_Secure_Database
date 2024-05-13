@@ -36,6 +36,8 @@ void handle_sql(http_request request) {
 
 	std::string sql_client = "../SampleAttestedTLS/client/host/tls_client_host";
 	std::string sql_enclave = "../SampleAttestedTLS/client/enc/tls_client_enclave.signed.so";
+	std::string sql_server = "127.0.0.1";
+	std::string sql_port = "3307";
 
         // Write SQL data to input file
 	std::ofstream input_stream(input_file);
@@ -48,7 +50,7 @@ void handle_sql(http_request request) {
         input_stream.close();
 
         // Call client program
-        std::string command = sql_client + " " + sql_enclave + " -server:127.0.0.1 -port:3307 -in:" + input_file + " -out:" + output_file;
+        std::string command = sql_client + " " + sql_enclave + " -server:" + sql_server + " -port:" + sql_port + " -in:" + input_file + " -out:" + output_file;
         system(command.c_str());
 
         // Read client output
