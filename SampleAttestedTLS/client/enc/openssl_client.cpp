@@ -202,12 +202,26 @@ struct MysqlDriver_t
 	string	m_sError;
 	SSL	*m_ssl;
 
+	//MysqlDriver_t ( int iSock )
+	MysqlDriver_t ()
+	{ 
+		m_iSock = 0;
+		m_pReadBuf = m_pReadCur = m_pReadMax = new BYTE [ MAX_PACKET ];
+		m_pWriteBuf = m_dWriteBuf;
+		m_ssl = NULL;
+	}
+
 	MysqlDriver_t ( int iSock )
 	{ 
 		m_iSock = iSock;
 		m_pReadBuf = m_pReadCur = m_pReadMax = new BYTE [ MAX_PACKET ];
 		m_pWriteBuf = m_dWriteBuf;
 		m_ssl = NULL;
+	}
+
+	void set_sock( int iSock )
+	{ 
+		m_iSock = iSock;
 	}
 
 	void set_ssl ( SSL *ssl )
@@ -471,8 +485,189 @@ unsigned long inet_addr2(const char *str)
     return lHost;
 }
 
+MysqlDriver_t db;
+int db_flag = 0;
 
-int launch_tls_client(char* server_name, char* server_port, const char* input_file, const char* output_file)
+int init_db_connect(const char* server_name, const char* server_port)
+{
+	SSL_CTX *ctx;
+	SSL *ssl;
+
+	initialize_openssl();
+	ctx = create_context();
+	configure_context(ctx);
+
+	const char *sHost = server_name, *sUser = "root", *sPass = "password";
+	int iPort = atoi(server_port);
+
+	sockaddr_in sin;
+	sin.sin_family = AF_INET;
+	sin.sin_port = htons ( iPort );
+	//memcpy ( &sin.sin_addr, *(in_addr **)pHost->h_addr_list, sizeof(in_addr) );
+        sin.sin_addr.s_addr = inet_addr2(sHost);
+        memset(&(sin.sin_zero), sizeof(sin.sin_zero), 0);
+
+	int iSock = socket ( AF_INET, SOCK_STREAM, 0 );
+	if ( iSock<0 || connect ( iSock, (sockaddr*)&sin, sizeof(sin) )<0 )
+		die ( "connection failed: %s", strerror(errno) );
+
+
+	// get and parse handshake packet
+	//MysqlDriver_t db ( iSock );
+	db.set_sock(iSock);
+	db.ReadPacket();
+
+	string sVer;
+	BYTE dScramble[21], uLang;
+
+	db.GetByte(); // proto_version
+	do { sVer.push_back ( db.GetByte() ); } while ( sVer.end()[-1] ); // server_version
+	db.GetDword(); // thread_id
+	for ( int i=0; i<8; i++ )
+		dScramble[i] = db.GetByte();
+	db.SkipBytes(3); // byte filler1, word caps_lo
+	uLang = db.GetByte();
+	db.SkipBytes(15); // word status, word caps_hi, byte scramble_len, byte filler2[10]
+	for ( int i=0; i<13; i++ )
+		dScramble[i+8] = db.GetByte();
+
+	if ( db.GetReadError() )
+		die ( "failed to parse mysql handshacke packet" );
+
+	//Send TLS request
+	db.SendDword ( (1<<24) + 4+4+1+23 );
+	db.SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
+	//db.SendDword ( 0x19ffae85 ); // +SSL
+	db.SendDword ( MAX_PACKET-1 ); // max_packet_size, 16 MB
+	db.SendByte ( uLang );
+	for ( int i=0; i<23; i++ )
+		db.SendByte ( 0 ); // filler
+	db.Flush();
+
+	//The usual SSL exchange leading to establishing SSL connection
+	//Standard TLS handshake
+	ssl = SSL_new(ctx);
+	SSL_set_fd(ssl, iSock); // iSock is your socket file descriptor
+	
+	if (SSL_connect(ssl) != 1) {
+		printf("SSL connections failed!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (SSL_get_verify_result(ssl) != X509_V_OK) {
+		// Handle error: Verification failed
+		printf("SSL CA Verification failed!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	db.set_ssl(ssl);
+
+	// send auth packet
+	//db.SendDword ( (1<<24) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
+	db.SendDword ( (1<<25) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
+	//db.SendDword ( 0x4003F7CFUL ); // all CLIENT_xxx flags but SSL, COMPRESS, SSL_VERIFY_SERVER_CERT, NO_SCHEMA
+	db.SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
+	//db.SendDword ( 2048+512 ); // +SSL, SSL_VERIFY_SERVER_CERT
+
+	//db.SendDword( (1<<24)+4+4+1+23+strlen(sUser)+1+1+20 );
+	//db.SendDword( 0x7fae85 );
+	//db.SendDword( 0x7fa685 );
+
+	db.SendDword ( MAX_PACKET-1 ); // max_packet_size, 16 MB
+	db.SendByte ( uLang );
+	for ( int i=0; i<23; i++ )
+		db.SendByte ( 0 ); // filler
+	db.SendBytes ( sUser, strlen(sUser)+1 ); // including trailing zero
+	if ( !sPass || !*sPass )
+	{
+		db.SendByte ( 0 ); // 0 password length = no password
+	} else
+	{
+		BYTE dStage1[SHA1_SIZE], dStage2[SHA1_SIZE], dRes[SHA1_SIZE];
+		SHA1_t sha;
+		sha.Init().Update ( (BYTE*)sPass, strlen(sPass) ).Final ( dStage1 );
+		sha.Init().Update ( dStage1, SHA1_SIZE ).Final ( dStage2 );
+		sha.Init().Update ( dScramble, 20 ).Update ( dStage2, SHA1_SIZE ).Final ( dRes );
+		db.SendByte ( SHA1_SIZE );
+		for ( int i=0; i<SHA1_SIZE; i++ )
+			db.SendByte ( dRes[i] ^ dStage1[i] );
+	}
+	
+	db.SendByte ( 0 ); // just a trailing zero instead of a full DB name
+	db.Flush();
+	
+	if ( db.ReadPacket()<0 )
+		die ( "auth failed: %s", db.m_sError.c_str() );
+	
+	printf ( "connected to mysql %s\n\n", sVer.c_str() );
+	
+	db_flag = 1;
+	return 0;
+}
+
+int get_db_flag()
+{
+	return db_flag;
+}
+
+int close_db_connect()
+{
+	//TODO
+	db_flag = 0;
+	return 0;
+}
+
+int exec_db_sql(const char* input_file, const char* output_file)
+{
+	// action!
+	char q[4096];
+
+	FILE *input = fopen(input_file, "r");
+	if (!input) {
+		fprintf(stderr, "Error: Failed to open input file %s.\n", input_file);
+		return 1;
+	}
+
+	FILE *output = fopen(output_file, "w");
+	if (!output) {
+		fprintf(stderr, "Error: Failed to open output file %s.\n", output_file);
+		return 1;
+	}
+	
+	for ( ;; )
+	{
+		//printf ( "nanomysql> " );
+		//fflush ( stdout );
+		if ( !fgets ( q, sizeof(q), input ) || !strcmp ( q, "quit\n" ) || !strcmp ( q, "exit\n" ) )
+		{
+			fprintf ( output, "bye\n\n" );
+			break;
+		}
+		if ( !db.Query(q) )
+		{
+			fprintf ( output, "error: %s\n\n", db.m_sError.c_str() );
+			continue;
+		}
+		int n = 0;
+		for ( size_t i=0; i<db.m_dFields.size(); i++ )
+			fprintf ( output, "%s%s", i ? ", " : "", db.m_dFields[i].c_str() );
+		if ( db.m_dFields.size() )
+			fprintf ( output, "\n\n---\n\n" );
+		while ( db.FetchRow() )
+		{
+			for ( size_t i=0; i<db.m_dRow.size(); i++ )
+				fprintf ( output, "%s%s", i ? ", " : "", db.m_dRow[i].c_str() );
+			fprintf ( output, "\n\n" );
+			n++;
+		}
+		fprintf ( output, "---\n\nok, %d row(s)\n\n", n );
+	}
+
+	return 0;
+
+}
+
+int launch_tls_client(const char* server_name, const char* server_port, const char* input_file, const char* output_file)
 {
 
 	SSL_CTX *ctx;

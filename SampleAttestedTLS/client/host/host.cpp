@@ -41,6 +41,16 @@
 #define TLS_SERVER_NAME "localhost"
 #define TLS_SERVER_PORT "12340"
 
+/* Global EID shared by multiple threads */
+sgx_enclave_id_t client_global_eid = 0;
+
+void terminate_enclave()
+{
+    sgx_destroy_enclave(client_global_eid);
+    printf("Host: Enclave successfully terminated.\n");
+}
+
+
 //Restful Server
 
 using namespace web;
@@ -64,8 +74,6 @@ void handle_sql(http_request request) {
         std::string input_file = "/tmp/" + filename + ".in";
         std::string output_file = "/tmp/" + filename + ".out";
 
-        std::string sql_client = "../SampleAttestedTLS/client/host/tls_client_host";
-        std::string sql_enclave = "../SampleAttestedTLS/client/enc/tls_client_enclave.signed.so";
         std::string sql_server = "127.0.0.1";
         std::string sql_port = "3307";
 
@@ -79,11 +87,17 @@ void handle_sql(http_request request) {
         input_stream << sql_data;
         input_stream.close();
 
-        // Call client program
-        std::string command = sql_client + " " + sql_enclave + " -server:" + sql_server + " -port:" + sql_port + " -in:" + input_file + " -out:" + output_file;
-        system(command.c_str());
-
-        // Read client output
+	sgx_status_t result = SGX_SUCCESS;
+	int ret = 1;
+	printf("Host: launch TLS client to initiate TLS connection\n");
+	result = launch_tls_client(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str(), input_file.c_str(), output_file.c_str());
+	if (result != SGX_SUCCESS || ret != 0)
+	{
+		printf("Host: launch_tls_client failed\n");
+		terminate_enclave();
+	}
+        
+	// Read client output
         std::ifstream output_stream(output_file);
         std::string output_content((std::istreambuf_iterator<char>(output_stream)), std::istreambuf_iterator<char>());
         output_stream.close();
@@ -96,11 +110,9 @@ void handle_sql(http_request request) {
         request.reply(status_codes::OK, response);
     })
     .wait();
+
 }
 
-
-/* Global EID shared by multiple threads */
-sgx_enclave_id_t client_global_eid = 0;
 
 
 typedef struct _sgx_errlist_t {
@@ -223,12 +235,6 @@ sgx_status_t initialize_enclave(const char *enclave_path)
     return ret;
 }
 
-void terminate_enclave()
-{
-    sgx_destroy_enclave(client_global_eid);
-    printf("Host: Enclave successfully terminated.\n");
-}
-
 int main(int argc, const char* argv[])
 {
     sgx_status_t result = SGX_SUCCESS;
@@ -237,6 +243,14 @@ int main(int argc, const char* argv[])
     char* server_port = NULL;
     char* input_file = NULL;
     char* output_file = NULL;
+    
+    printf("Host: Creating client enclave\n");
+    result = initialize_enclave(argv[1]);
+    if (result != SGX_SUCCESS)
+    {
+	terminate_enclave();
+	return -1;
+    }
 
     //Lauch Restful Server
     srand(time(NULL));
@@ -258,103 +272,6 @@ int main(int argc, const char* argv[])
 
     listener.close().wait();
 
-    /* Check argument count */
-    if (argc != 6)
-    {
-    print_usage:
-        printf(
-            "Usage: %s TLS_SERVER_ENCLAVE_PATH -server:<name> -port:<port> -in:<in file> -out:<out file>\n",
-            argv[0]);
-        return 1;
-    }
-    // read server name  parameter
-    {
-        const char* option = "-server:";
-        int param_len = 0;
-        param_len = strlen(option);
-        if (strncmp(argv[2], option, param_len) == 0)
-        {
-            server_name = (char*)(argv[2] + param_len);
-        }
-        else
-        {
-            fprintf(stderr, "Unknown option %s\n", argv[2]);
-            goto print_usage;
-        }
-    }
-    printf("server name = [%s]\n", server_name);
-
-    // read port parameter
-    {
-        const char* option = "-port:";
-        int param_len = 0;
-        param_len = strlen(option);
-        if (strncmp(argv[3], option, param_len) == 0)
-        {
-            server_port = (char*)(argv[3] + param_len);
-        }
-        else
-        {
-            fprintf(stderr, "Unknown option %s\n", argv[2]);
-            goto print_usage;
-        }
-    }
-    printf("server port = [%s]\n", server_port);
-
-    // read in parameter
-    {
-        const char* option = "-in:";
-        int param_len = 0;
-        param_len = strlen(option);
-        if (strncmp(argv[4], option, param_len) == 0)
-        {
-            input_file = (char*)(argv[4] + param_len);
-        }
-        else
-        {
-            fprintf(stderr, "Unknown option %s\n", argv[4]);
-            goto print_usage;
-        }
-    }
-    printf("in file = [%s]\n", input_file);
-
-    // read out parameter
-    {
-        const char* option = "-out:";
-        int param_len = 0;
-        param_len = strlen(option);
-        if (strncmp(argv[5], option, param_len) == 0)
-        {
-            output_file = (char*)(argv[5] + param_len);
-        }
-        else
-        {
-            fprintf(stderr, "Unknown option %s\n", argv[5]);
-            goto print_usage;
-        }
-    }
-    printf("out file = [%s]\n", output_file);
-
-
-    printf("Host: Creating client enclave\n");
-    result = initialize_enclave(argv[1]);
-    if (result != SGX_SUCCESS)
-    {
-        goto exit;
-    }
-
-    printf("Host: launch TLS client to initiate TLS connection\n");
-    result = launch_tls_client(client_global_eid, &ret, server_name, server_port, input_file, output_file);
-    if (result != SGX_SUCCESS || ret != 0)
-    {
-        printf("Host: launch_tls_client failed\n");
-        goto exit;
-    }
-    ret = 0;
-exit:
-
     terminate_enclave();
-
-    printf("Host:  %s \n", (ret == 0) ? "succeeded" : "failed");
-    return ret;
+    return 0;
 }
