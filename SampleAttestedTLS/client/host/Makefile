@@ -50,7 +50,7 @@ build:
 
 	$(CC) -c $(App_C_Flags) tls_client_u.c
 	$(CXX) -c -DM_TLS_CLIENT $(App_Cpp_Flags) host.cpp
-	$(CXX) -o tls_client_host host.o tls_client_u.o $(App_Link_Flags)
+	$(CXX) -o tls_client_host host.o tls_client_u.o $(App_Link_Flags) -std=c++11 -lboost_system -lcpprest -lssl -lcrypto -pthread 
 
 clean:
 	rm -f tls_client_host *.o tls_client_u.* tls_client_args.h
