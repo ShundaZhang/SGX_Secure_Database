@@ -485,10 +485,9 @@ unsigned long inet_addr2(const char *str)
     return lHost;
 }
 
-MysqlDriver_t db;
 int db_flag = 0;
 
-int init_db_connect(const char* server_name, const char* server_port)
+int init_db_connect(const char* server_name, const char* server_port, void **xdb)
 {
 	SSL_CTX *ctx;
 	SSL *ssl;
@@ -514,35 +513,38 @@ int init_db_connect(const char* server_name, const char* server_port)
 
 	// get and parse handshake packet
 	//MysqlDriver_t db ( iSock );
-	db.set_sock(iSock);
-	db.ReadPacket();
+	MysqlDriver_t *pdb = NULL;
+	pdb = new MysqlDriver_t();
+	*xdb = (void *)pdb;
+	pdb->set_sock(iSock);
+	pdb->ReadPacket();
 
 	string sVer;
 	BYTE dScramble[21], uLang;
 
-	db.GetByte(); // proto_version
-	do { sVer.push_back ( db.GetByte() ); } while ( sVer.end()[-1] ); // server_version
-	db.GetDword(); // thread_id
+	pdb->GetByte(); // proto_version
+	do { sVer.push_back ( pdb->GetByte() ); } while ( sVer.end()[-1] ); // server_version
+	pdb->GetDword(); // thread_id
 	for ( int i=0; i<8; i++ )
-		dScramble[i] = db.GetByte();
-	db.SkipBytes(3); // byte filler1, word caps_lo
-	uLang = db.GetByte();
-	db.SkipBytes(15); // word status, word caps_hi, byte scramble_len, byte filler2[10]
+		dScramble[i] = pdb->GetByte();
+	pdb->SkipBytes(3); // byte filler1, word caps_lo
+	uLang = pdb->GetByte();
+	pdb->SkipBytes(15); // word status, word caps_hi, byte scramble_len, byte filler2[10]
 	for ( int i=0; i<13; i++ )
-		dScramble[i+8] = db.GetByte();
+		dScramble[i+8] = pdb->GetByte();
 
-	if ( db.GetReadError() )
+	if ( pdb->GetReadError() )
 		die ( "failed to parse mysql handshacke packet" );
 
 	//Send TLS request
-	db.SendDword ( (1<<24) + 4+4+1+23 );
-	db.SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
-	//db.SendDword ( 0x19ffae85 ); // +SSL
-	db.SendDword ( MAX_PACKET-1 ); // max_packet_size, 16 MB
-	db.SendByte ( uLang );
+	pdb->SendDword ( (1<<24) + 4+4+1+23 );
+	pdb->SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
+	//pdb->SendDword ( 0x19ffae85 ); // +SSL
+	pdb->SendDword ( MAX_PACKET-1 ); // max_packet_size, 16 MB
+	pdb->SendByte ( uLang );
 	for ( int i=0; i<23; i++ )
-		db.SendByte ( 0 ); // filler
-	db.Flush();
+		pdb->SendByte ( 0 ); // filler
+	pdb->Flush();
 
 	//The usual SSL exchange leading to establishing SSL connection
 	//Standard TLS handshake
@@ -560,27 +562,27 @@ int init_db_connect(const char* server_name, const char* server_port)
 		exit(EXIT_FAILURE);
 	}
 
-	db.set_ssl(ssl);
+	pdb->set_ssl(ssl);
 
 	// send auth packet
-	//db.SendDword ( (1<<24) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
-	db.SendDword ( (1<<25) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
-	//db.SendDword ( 0x4003F7CFUL ); // all CLIENT_xxx flags but SSL, COMPRESS, SSL_VERIFY_SERVER_CERT, NO_SCHEMA
-	db.SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
-	//db.SendDword ( 2048+512 ); // +SSL, SSL_VERIFY_SERVER_CERT
+	//pdb->SendDword ( (1<<24) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
+	pdb->SendDword ( (1<<25) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
+	//pdb->SendDword ( 0x4003F7CFUL ); // all CLIENT_xxx flags but SSL, COMPRESS, SSL_VERIFY_SERVER_CERT, NO_SCHEMA
+	pdb->SendDword ( 0x4003ffcfUL ); // +SSL, SSL_VERIFY_SERVER_CERT
+	//pdb->SendDword ( 2048+512 ); // +SSL, SSL_VERIFY_SERVER_CERT
 
-	//db.SendDword( (1<<24)+4+4+1+23+strlen(sUser)+1+1+20 );
-	//db.SendDword( 0x7fae85 );
-	//db.SendDword( 0x7fa685 );
+	//pdb->SendDword( (1<<24)+4+4+1+23+strlen(sUser)+1+1+20 );
+	//pdb->SendDword( 0x7fae85 );
+	//pdb->SendDword( 0x7fa685 );
 
-	db.SendDword ( MAX_PACKET-1 ); // max_packet_size, 16 MB
-	db.SendByte ( uLang );
+	pdb->SendDword ( MAX_PACKET-1 ); // max_packet_size, 16 MB
+	pdb->SendByte ( uLang );
 	for ( int i=0; i<23; i++ )
-		db.SendByte ( 0 ); // filler
-	db.SendBytes ( sUser, strlen(sUser)+1 ); // including trailing zero
+		pdb->SendByte ( 0 ); // filler
+	pdb->SendBytes ( sUser, strlen(sUser)+1 ); // including trailing zero
 	if ( !sPass || !*sPass )
 	{
-		db.SendByte ( 0 ); // 0 password length = no password
+		pdb->SendByte ( 0 ); // 0 password length = no password
 	} else
 	{
 		BYTE dStage1[SHA1_SIZE], dStage2[SHA1_SIZE], dRes[SHA1_SIZE];
@@ -588,16 +590,16 @@ int init_db_connect(const char* server_name, const char* server_port)
 		sha.Init().Update ( (BYTE*)sPass, strlen(sPass) ).Final ( dStage1 );
 		sha.Init().Update ( dStage1, SHA1_SIZE ).Final ( dStage2 );
 		sha.Init().Update ( dScramble, 20 ).Update ( dStage2, SHA1_SIZE ).Final ( dRes );
-		db.SendByte ( SHA1_SIZE );
+		pdb->SendByte ( SHA1_SIZE );
 		for ( int i=0; i<SHA1_SIZE; i++ )
-			db.SendByte ( dRes[i] ^ dStage1[i] );
+			pdb->SendByte ( dRes[i] ^ dStage1[i] );
 	}
 	
-	db.SendByte ( 0 ); // just a trailing zero instead of a full DB name
-	db.Flush();
+	pdb->SendByte ( 0 ); // just a trailing zero instead of a full DB name
+	pdb->Flush();
 	
-	if ( db.ReadPacket()<0 )
-		die ( "auth failed: %s", db.m_sError.c_str() );
+	if ( pdb->ReadPacket()<0 )
+		die ( "auth failed: %s", pdb->m_sError.c_str() );
 	
 	printf ( "connected to mysql %s\n\n", sVer.c_str() );
 	
@@ -610,15 +612,19 @@ int get_db_flag()
 	return db_flag;
 }
 
-int close_db_connect()
+int close_db_connect(void *xdb)
 {
-	//TODO
+	MysqlDriver_t *pdb = (MysqlDriver_t *)xdb;
+	delete pdb;
+
 	db_flag = 0;
 	return 0;
 }
 
-int exec_db_sql(const char* input_file, const char* output_file)
+int exec_db_sql(const char* input_file, const char* output_file, void *xdb)
 {
+	MysqlDriver_t *pdb = (MysqlDriver_t *)xdb;
+	
 	// action!
 	char q[4096];
 
@@ -643,20 +649,20 @@ int exec_db_sql(const char* input_file, const char* output_file)
 			fprintf ( output, "bye\n\n" );
 			break;
 		}
-		if ( !db.Query(q) )
+		if ( !pdb->Query(q) )
 		{
-			fprintf ( output, "error: %s\n\n", db.m_sError.c_str() );
+			fprintf ( output, "error: %s\n\n", pdb->m_sError.c_str() );
 			continue;
 		}
 		int n = 0;
-		for ( size_t i=0; i<db.m_dFields.size(); i++ )
-			fprintf ( output, "%s%s", i ? ", " : "", db.m_dFields[i].c_str() );
-		if ( db.m_dFields.size() )
+		for ( size_t i=0; i<pdb->m_dFields.size(); i++ )
+			fprintf ( output, "%s%s", i ? ", " : "", pdb->m_dFields[i].c_str() );
+		if ( pdb->m_dFields.size() )
 			fprintf ( output, "\n\n---\n\n" );
-		while ( db.FetchRow() )
+		while ( pdb->FetchRow() )
 		{
-			for ( size_t i=0; i<db.m_dRow.size(); i++ )
-				fprintf ( output, "%s%s", i ? ", " : "", db.m_dRow[i].c_str() );
+			for ( size_t i=0; i<pdb->m_dRow.size(); i++ )
+				fprintf ( output, "%s%s", i ? ", " : "", pdb->m_dRow[i].c_str() );
 			fprintf ( output, "\n\n" );
 			n++;
 		}

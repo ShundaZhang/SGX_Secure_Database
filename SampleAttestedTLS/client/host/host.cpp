@@ -92,6 +92,8 @@ void handle_sql(http_request request) {
 	printf("Host: launch TLS client to initiate TLS connection\n");
 	//result = launch_tls_client(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str(), input_file.c_str(), output_file.c_str());
 
+	static void *pdb = NULL; 
+
 	result = get_db_flag(client_global_eid, &ret);
 	if (result != SGX_SUCCESS)
 	{
@@ -99,9 +101,11 @@ void handle_sql(http_request request) {
 		terminate_enclave();
 	}
 
-	if(!ret)
+	printf( "DB INT FLAG: %d\n", ret );
+
+	if(!ret && !pdb)
 	{
-		result = init_db_connect(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str());
+		result = init_db_connect(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str(), &pdb);
 		if (result != SGX_SUCCESS || ret != 0)
 		{
 			printf("Host: init_db_connect failed\n");
@@ -109,7 +113,9 @@ void handle_sql(http_request request) {
 		}
 	}
 
-	result = exec_db_sql(client_global_eid, &ret, input_file.c_str(), output_file.c_str());
+
+	printf( "DB handler: %p\n", pdb);
+	result = exec_db_sql(client_global_eid, &ret, input_file.c_str(), output_file.c_str(), pdb);
 	if (result != SGX_SUCCESS || ret != 0)
 	{
 		printf("Host: exec_db_sql failed\n");

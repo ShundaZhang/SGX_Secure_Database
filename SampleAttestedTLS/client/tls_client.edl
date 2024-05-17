@@ -44,10 +44,12 @@ enclave {
 	public int get_db_flag();
 	public int init_db_connect(               
 		[in, string] const char* server_name,
-                [in, string] const char* server_port);
+                [in, string] const char* server_port,
+		[user_check] void** xdb);
 	public int exec_db_sql(
 		[in, string] const char* input_file,
-                [in, string] const char* output_file);
+                [in, string] const char* output_file,
+		[user_check] void* xdb);
         public int launch_tls_client(
                 [in, string] const char* server_name,
                 [in, string] const char* server_port,
