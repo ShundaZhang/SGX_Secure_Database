@@ -201,6 +201,7 @@ struct MysqlDriver_t
 	vector<string>	m_dFields, m_dRow;
 	string	m_sError;
 	SSL	*m_ssl;
+	SSL_CTX *m_ctx;
 
 	//MysqlDriver_t ( int iSock )
 	MysqlDriver_t ()
@@ -209,6 +210,7 @@ struct MysqlDriver_t
 		m_pReadBuf = m_pReadCur = m_pReadMax = new BYTE [ MAX_PACKET ];
 		m_pWriteBuf = m_dWriteBuf;
 		m_ssl = NULL;
+		m_ctx = NULL;
 	}
 
 	MysqlDriver_t ( int iSock )
@@ -217,6 +219,7 @@ struct MysqlDriver_t
 		m_pReadBuf = m_pReadCur = m_pReadMax = new BYTE [ MAX_PACKET ];
 		m_pWriteBuf = m_dWriteBuf;
 		m_ssl = NULL;
+		m_ctx = NULL;
 	}
 
 	void set_sock( int iSock )
@@ -224,9 +227,10 @@ struct MysqlDriver_t
 		m_iSock = iSock;
 	}
 
-	void set_ssl ( SSL *ssl )
+	void set_ssl ( SSL *ssl, SSL_CTX *ctx )
 	{
 		m_ssl = ssl;
+		m_ctx = ctx;
 	}
 
 	void debug_print(unsigned char *buf, int len )
@@ -562,7 +566,7 @@ int init_db_connect(const char* server_name, const char* server_port, void **xdb
 		exit(EXIT_FAILURE);
 	}
 
-	pdb->set_ssl(ssl);
+	pdb->set_ssl(ssl, ctx);
 
 	// send auth packet
 	//pdb->SendDword ( (1<<24) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no
@@ -615,6 +619,11 @@ int get_db_flag()
 int close_db_connect(void *xdb)
 {
 	MysqlDriver_t *pdb = (MysqlDriver_t *)xdb;
+	
+	SSL_free(pdb->m_ssl);
+	close(pdb->m_iSock);
+	SSL_CTX_free(pdb->m_ctx);
+	
 	delete pdb;
 
 	db_flag = 0;
@@ -762,7 +771,7 @@ int launch_tls_client(const char* server_name, const char* server_port, const ch
 		exit(EXIT_FAILURE);
 	}
 
-	db.set_ssl(ssl);
+	db.set_ssl(ssl, ctx);
 
 	// send auth packet
 	//db.SendDword ( (1<<24) + 34 + strlen(sUser) + ( strlen(sPass) ? 21 : 1 ) ); // byte len[3], byte packet_no

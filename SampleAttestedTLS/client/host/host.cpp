@@ -122,6 +122,14 @@ void handle_sql(http_request request) {
 		terminate_enclave();
 	}
 
+	result = close_db_connect(client_global_eid, &ret, pdb);
+	if (result != SGX_SUCCESS || ret != 0)
+        {
+                printf("Host: close_db_connect failed\n");
+                terminate_enclave();
+        }
+	pdb = NULL;
+
 
 	// Read client output
 	std::ifstream output_stream(output_file);
