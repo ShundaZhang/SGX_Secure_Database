@@ -1,3 +1,4 @@
+//
 //g++ -o fgets fgets.cpp
 
 #include <iostream>
