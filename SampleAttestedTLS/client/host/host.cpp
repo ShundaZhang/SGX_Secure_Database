@@ -61,7 +61,7 @@ void terminate_enclave()
 #include <time.h>
 #include <endian.h>
 
-#define DB_POOL_CONN_COUNT        (8U)
+#define DB_POOL_CONN_COUNT        (4U)
 #define DEFAULT_MUTEX_TIMEOUT_SEC (30)
 
 static pthread_mutex_t db_mutex;
