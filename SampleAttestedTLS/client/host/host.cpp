@@ -409,6 +409,9 @@ using namespace web;
 using namespace web::http;
 using namespace web::http::experimental::listener;
 
+std::string sql_server = "127.0.0.1";
+std::string sql_port = "3307";
+
 void handle_sql(http_request request) {
 	ucout << "Received POST request to /sql" << std::endl;
 
@@ -426,9 +429,6 @@ void handle_sql(http_request request) {
 				std::string input_file = "/tmp/" + filename + ".in";
 				std::string output_file = "/tmp/" + filename + ".out";
 
-				std::string sql_server = "127.0.0.1";
-				std::string sql_port = "3307";
-
 				// Write SQL data to input file
 				std::ofstream input_stream(input_file);
 				size_t pos = 0;
@@ -444,29 +444,22 @@ void handle_sql(http_request request) {
 				printf("Host: launch TLS client to initiate TLS connection\n");
 				//result = launch_tls_client(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str(), input_file.c_str(), output_file.c_str());
 
-				static void *pdb = NULL; 
+				void *pdb = NULL; 
 
-				result = get_db_flag(client_global_eid, &ret);
-				if (result != SGX_SUCCESS)
+				//result = get_db_flag(client_global_eid, &ret);
+				//if (result != SGX_SUCCESS)
+				//{
+				//	printf("Host: get_db_flag failed\n");
+				//	terminate_enclave();
+				//}
+
+				pdb = db_get_conn();
+				if (!pdb)
 				{
-					printf("Host: get_db_flag failed\n");
-					terminate_enclave();
-				}
-
-				printf( "DB INT FLAG: %d\n", ret );
-
-				if(!ret && !pdb)
-				{
-					result = init_db_connect(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str(), &pdb);
-					if (result != SGX_SUCCESS || ret != 0)
-					{
-						printf("Host: init_db_connect failed\n");
-						terminate_enclave();
-					}
+					printf("Get connection failed\n");
 				}
 
 
-				printf( "DB handler: %p\n", pdb);
 				result = exec_db_sql(client_global_eid, &ret, input_file.c_str(), output_file.c_str(), pdb);
 				if (result != SGX_SUCCESS || ret != 0)
 				{
@@ -474,14 +467,13 @@ void handle_sql(http_request request) {
 					terminate_enclave();
 				}
 
-				result = close_db_connect(client_global_eid, &ret, pdb);
-				if (result != SGX_SUCCESS || ret != 0)
-				{
-					printf("Host: close_db_connect failed\n");
-					terminate_enclave();
-				}
-				pdb = NULL;
-
+				//result = close_db_connect(client_global_eid, &ret, pdb);
+				//if (result != SGX_SUCCESS || ret != 0)
+				//{
+				//	printf("Host: close_db_connect failed\n");
+				//	terminate_enclave();
+				//}
+				//pdb = NULL;
 
 				// Read client output
 				std::ifstream output_stream(output_file);
@@ -634,6 +626,14 @@ int main(int argc, const char* argv[])
 	result = initialize_enclave(argv[1]);
 	if (result != SGX_SUCCESS)
 	{
+		terminate_enclave();
+		return -1;
+	}
+
+	ret = db_open(sql_server.c_str(), sql_port.c_str());
+	if ( ret != 0 )
+	{
+		printf("DB Open Error!");
 		terminate_enclave();
 		return -1;
 	}
