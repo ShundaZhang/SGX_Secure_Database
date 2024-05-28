@@ -514,7 +514,6 @@ int init_db_connect(const char* server_name, const char* server_port, void **xdb
 	if ( iSock<0 || connect ( iSock, (sockaddr*)&sin, sizeof(sin) )<0 )
 		die ( "connection failed: %s", strerror(errno) );
 
-
 	// get and parse handshake packet
 	//MysqlDriver_t db ( iSock );
 	MysqlDriver_t *pdb = NULL;
@@ -618,6 +617,7 @@ int get_db_flag()
 
 int close_db_connect(void *xdb)
 {
+
 	MysqlDriver_t *pdb = (MysqlDriver_t *)xdb;
 	
 	SSL_free(pdb->m_ssl);

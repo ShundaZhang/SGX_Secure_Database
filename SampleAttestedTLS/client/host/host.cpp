@@ -61,7 +61,7 @@ void terminate_enclave()
 #include <time.h>
 #include <endian.h>
 
-#define DB_POOL_CONN_COUNT        (4U)
+#define DB_POOL_CONN_COUNT        (7U)
 #define DEFAULT_MUTEX_TIMEOUT_SEC (30)
 
 static pthread_mutex_t db_mutex;
@@ -466,6 +466,7 @@ void handle_sql(http_request request) {
 					printf("Host: exec_db_sql failed\n");
 					terminate_enclave();
 				}
+				db_post_conn(pdb);
 
 				//result = close_db_connect(client_global_eid, &ret, pdb);
 				//if (result != SGX_SUCCESS || ret != 0)
