@@ -630,13 +630,42 @@ int close_db_connect(void *xdb)
 	return 0;
 }
 
-int exec_db_sql(const char* input_file, const char* output_file, void *xdb)
+char *memfgets(char *buffer, int size, const char *memory, int *offset) {
+    if (buffer == NULL || memory == NULL || offset == NULL) {
+        return NULL;
+    }
+
+    int i = 0;
+    while (i < size - 1 && memory[*offset] != '\0' && memory[*offset] != '\n') {
+        buffer[i++] = memory[*offset];
+        (*offset)++;
+    }
+
+    if (memory[*offset] == '\n') {
+        buffer[i++] = memory[*offset];
+        (*offset)++;
+    }
+
+    buffer[i] = '\0';
+
+    if (i == 0) {
+        return NULL;
+    }
+
+    return buffer;
+}
+
+int exec_db_sql(char* input, char* output, void *xdb)
 {
 	MysqlDriver_t *pdb = (MysqlDriver_t *)xdb;
 	
 	// action!
 	char q[4096];
+	int n1 = 0;
+	int offset_out = 0;
+	int n2 = 0;
 
+	/*
 	FILE *input = fopen(input_file, "r");
 	if (!input) {
 		fprintf(stderr, "Error: Failed to open input file %s.\n", input_file);
@@ -648,38 +677,50 @@ int exec_db_sql(const char* input_file, const char* output_file, void *xdb)
 		fprintf(stderr, "Error: Failed to open output file %s.\n", output_file);
 		return 1;
 	}
+	*/
 	
 	for ( ;; )
 	{
 		//printf ( "nanomysql> " );
 		//fflush ( stdout );
-		if ( !fgets ( q, sizeof(q), input ) || !strcmp ( q, "quit\n" ) || !strcmp ( q, "exit\n" ) )
+		//if ( !fgets ( q, sizeof(q), input ) || !strcmp ( q, "quit\n" ) || !strcmp ( q, "exit\n" ) )
+		if ( memfgets(q, sizeof(q), input, &n1) == NULL || !strcmp ( q, "quit\n" ) || !strcmp ( q, "exit\n" ) )
 		{
-			fprintf ( output, "bye\n\n" );
+			n2 = sprintf ( output+offset_out, "bye\n\n" );
+			offset_out += n2;
 			break;
 		}
 		if ( !pdb->Query(q) )
 		{
-			fprintf ( output, "error: %s\n\n", pdb->m_sError.c_str() );
+			n2 = sprintf ( output+offset_out, "error: %s\n\n", pdb->m_sError.c_str() );
+			offset_out += n2;
 			continue;
 		}
 		int n = 0;
 		for ( size_t i=0; i<pdb->m_dFields.size(); i++ )
-			fprintf ( output, "%s%s", i ? ", " : "", pdb->m_dFields[i].c_str() );
+		{
+			n2 = sprintf ( output+offset_out, "%s%s", i ? ", " : "", pdb->m_dFields[i].c_str() );
+			offset_out += n2;
+		}
 		if ( pdb->m_dFields.size() )
-			fprintf ( output, "\n\n---\n\n" );
+		{
+			n2 = sprintf ( output+offset_out, "\n\n---\n\n" );
+			offset_out += n2;
+		}
 		while ( pdb->FetchRow() )
 		{
 			for ( size_t i=0; i<pdb->m_dRow.size(); i++ )
-				fprintf ( output, "%s%s", i ? ", " : "", pdb->m_dRow[i].c_str() );
-			fprintf ( output, "\n\n" );
+			{
+				n2 = sprintf ( output+offset_out, "%s%s", i ? ", " : "", pdb->m_dRow[i].c_str() );
+				offset_out += n2;
+			}
+			n2 = sprintf ( output+offset_out, "\n\n" );
+			offset_out += n2;
 			n++;
 		}
-		fprintf ( output, "---\n\nok, %d row(s)\n\n", n );
+		n2 = sprintf ( output+offset_out, "---\n\nok, %d row(s)\n\n", n );
+		offset_out += n2;
 	}
-
-	fclose(input);
-	fclose(output);
 
 	return 0;
 
