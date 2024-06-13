@@ -678,6 +678,9 @@ int exec_db_sql(const char* input_file, const char* output_file, void *xdb)
 		fprintf ( output, "---\n\nok, %d row(s)\n\n", n );
 	}
 
+	fclose(input);
+	fclose(output);
+
 	return 0;
 
 }

@@ -1,1 +1,5 @@
 ERROR: :OE_OUT_OF_THREADS [openenclave-src/host/sgx/calls.c:oe_ecall:623]
+
+SHOW STATUS LIKE 'Threads_connected';
+SHOW VARIABLES LIKE 'max_connections';
+
