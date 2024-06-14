@@ -52,11 +52,6 @@ enclave {
 		[user_check] void* xdb);
 	public int close_db_connect(
 		[user_check] void* xdb);
-        public int launch_tls_client(
-                [in, string] const char* server_name,
-                [in, string] const char* server_port,
-                [in, string] const char* input_file,
-                [in, string] const char* output_file);
     };
 
 };

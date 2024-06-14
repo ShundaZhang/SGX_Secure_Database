@@ -61,7 +61,7 @@ void terminate_enclave()
 #include <time.h>
 #include <endian.h>
 
-#define DB_POOL_CONN_COUNT        (20U)
+#define DB_POOL_CONN_COUNT        (24U)
 #define DEFAULT_MUTEX_TIMEOUT_SEC (30)
 
 static pthread_mutex_t db_mutex;
@@ -424,28 +424,10 @@ void handle_sql(http_request request) {
 				// Add the query "SHOW STATUS LIKE 'Ssl_cipher';" to SQL data
 				sql_data += "SHOW STATUS LIKE 'Ssl_cipher';";
 
-				// Generate a random filename
-				//std::string filename = std::to_string(rand()) + ".sql";
-				//std::string input_file = "/tmp/" + filename + ".in";
-				//std::string output_file = "/tmp/" + filename + ".out";
 				char *input_file = (char *)malloc(4096);
 				char *output_file = (char *)malloc(4096);
 
-				// Write SQL data to input file
-				//std::ofstream input_stream(input_file);
-				//size_t pos = 0;
-				//while ((pos = sql_data.find(';', pos)) != std::string::npos) {
-				//	sql_data.insert(pos + 1, "\n");
-				//	++pos;
-				//}
-				//input_stream << sql_data;
-				//input_stream.close();
-
-				if (input_file == nullptr) {
-					std::cerr << "Memory allocation failed" << std::endl;
-				}
-
-				if (output_file == nullptr) {
+				if (input_file == nullptr || output_file == nullptr) {
 					std::cerr << "Memory allocation failed" << std::endl;
 				}
 
@@ -465,16 +447,8 @@ void handle_sql(http_request request) {
 				sgx_status_t result = SGX_SUCCESS;
 				int ret = 1;
 				printf("Host: launch TLS client to initiate TLS connection\n");
-				//result = launch_tls_client(client_global_eid, &ret, sql_server.c_str(), sql_port.c_str(), input_file.c_str(), output_file.c_str());
 
 				void *pdb = NULL; 
-
-				//result = get_db_flag(client_global_eid, &ret);
-				//if (result != SGX_SUCCESS)
-				//{
-				//	printf("Host: get_db_flag failed\n");
-				//	terminate_enclave();
-				//}
 
 				pdb = db_get_conn();
 				if (!pdb)
@@ -482,12 +456,11 @@ void handle_sql(http_request request) {
 					printf("Get connection failed\n");
 				}
 
-
-				//result = exec_db_sql(client_global_eid, &ret, input_file.c_str(), output_file.c_str(), pdb);
 				result = exec_db_sql(client_global_eid, &ret, input_file, output_file, pdb);
 				if (result != SGX_SUCCESS || ret != 0)
 				{
-					printf("Host: exec_db_sql failed\n");
+					printf("Host: exec_db_sql failed with result=%d, ret=%d.\n", result, ret);
+					//Stop the enclave, only for Debug
 					//terminate_enclave();
 				}
 				db_post_conn(pdb);
@@ -501,9 +474,6 @@ void handle_sql(http_request request) {
 				//pdb = NULL;
 
 				// Read client output
-				//std::ifstream output_stream(output_file);
-				//std::string output_content((std::istreambuf_iterator<char>(output_stream)), std::istreambuf_iterator<char>());
-				//output_stream.close();
 				std::string output_content(output_file);
 
 				free(input_file);

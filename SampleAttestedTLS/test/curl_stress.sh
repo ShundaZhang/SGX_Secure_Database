@@ -5,7 +5,7 @@ start_time=$(date +%s)
 
 for i in {1..10000}
 do
-  curl -X POST -H "Content-Type: application/json" \
+  curl --noproxy '*' -X POST -H "Content-Type: application/json" \
   -d '{"data": "show databases;use $edgeless;show tables;desc config;"}' \
   http://10.239.166.47:8088/sql &
 done
