@@ -5,7 +5,8 @@ start_time=$(date +%s)
 
 for i in {1..10000}
 do
-	mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "show databases; use mysql; show tables; desc user;SHOW STATUS LIKE 'Ssl_cipher';"  &
+	#mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "show databases; use mysql; show tables; desc user;SHOW STATUS LIKE 'Ssl_cipher';"  &
+	mysql -h 10.239.166.47 -P 3306 -u user -ppassword -e "show databases; use mysql; show tables; desc user;SHOW STATUS LIKE 'Ssl_cipher';" &
 done
 
 # Wait for all background processes to finish
