@@ -1,11 +1,17 @@
 #!/bin/bash
 #mysql -uroot -h127.0.0.1 -P3306 -ppassword
 
-#for i in {1..1000}
-for i in {1..100}
+start_time=$(date +%s)
+
+for i in {1..10000}
 do
-	mysql -uroot -h127.0.0.1 -P3306 -ppassword  &
+	mysql -h 127.0.0.1 -P 3306 -u root -ppassword -e "show databases; use mysql; show tables; desc user;SHOW STATUS LIKE 'Ssl_cipher';"  &
 done
 
 # Wait for all background processes to finish
 wait
+
+end_time=$(date +%s)
+
+elapsed_time=$((end_time - start_time))
+echo "Total time taken: ${elapsed_time} seconds"
