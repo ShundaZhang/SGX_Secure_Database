@@ -134,7 +134,7 @@ int db_close(void *pdb)
 				sgx_status_t result = close_db_connect(client_global_eid, &ret, pdb);
 				if (result != SGX_SUCCESS || ret != 0)
 				{
-					printf("Host: close_db_connect failed\n");
+					printf("Host: close_db_connect failed! result=%d, ret=%d\n", result, ret);
 					terminate_enclave();
 					return -1;
 				}
@@ -151,6 +151,24 @@ int db_close(void *pdb)
 	return 0;
 }
 
+
+void db_close_all()
+{
+	int ret;
+	for (int i = 0U; i < DB_POOL_CONN_COUNT; i++)
+	{
+		if (mysql_conns[i]) {
+			printf( "Exiting, closing connection %d\n", i);
+			sgx_status_t result = close_db_connect(client_global_eid, &ret, mysql_conns[i]);
+			if (result != SGX_SUCCESS || ret != 0)
+			{
+				printf("Host: close_db_connect failed\n");
+				terminate_enclave();
+			}
+
+		}
+	}
+}
 
 int db_open(const char *host, const char *port)
 {
@@ -657,6 +675,7 @@ int main(int argc, const char* argv[])
 
 	listener.close().wait();
 
+	db_close_all();
 	terminate_enclave();
 	return 0;
 }

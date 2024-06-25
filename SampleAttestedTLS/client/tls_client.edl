@@ -41,7 +41,6 @@ enclave {
 
     //include "sgx_ttls.h"
     trusted {
-	public int get_db_flag();
 	public int init_db_connect(               
 		[in, string] const char* server_name,
                 [in, string] const char* server_port,

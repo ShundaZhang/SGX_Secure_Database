@@ -489,7 +489,6 @@ unsigned long inet_addr2(const char *str)
     return lHost;
 }
 
-int db_flag = 0;
 
 int init_db_connect(const char* server_name, const char* server_port, void **xdb)
 {
@@ -606,27 +605,19 @@ int init_db_connect(const char* server_name, const char* server_port, void **xdb
 	
 	printf ( "connected to mysql %s\n\n", sVer.c_str() );
 	
-	db_flag = 1;
 	return 0;
-}
-
-int get_db_flag()
-{
-	return db_flag;
 }
 
 int close_db_connect(void *xdb)
 {
 
 	MysqlDriver_t *pdb = (MysqlDriver_t *)xdb;
-	
 	SSL_free(pdb->m_ssl);
 	close(pdb->m_iSock);
 	SSL_CTX_free(pdb->m_ctx);
 	
 	delete pdb;
 
-	db_flag = 0;
 	return 0;
 }
 
