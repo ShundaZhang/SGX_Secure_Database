@@ -1,9 +1,7 @@
 #include <iostream>
 #include <string>
 #include <cpprest/http_listener.h>
-#include <cpprest/filestream.h>
 #include <cpprest/containerstream.h>
-#include <cpprest/producerconsumerstream.h>
 
 using namespace web;
 using namespace web::http;
@@ -43,24 +41,22 @@ int main()
 
 void handle_file_upload(http_request request)
 {
-    auto fileStream = std::make_shared<ostream>();
+    auto bufferStream = std::make_shared<container_buffer<std::vector<uint8_t>>>();
 
-    // Open stream to output file.
-    pplx::task<void> requestTask = fstream::open_ostream(U("uploaded_file"))
-    .then([=](ostream outFile) {
-        *fileStream = outFile;
+    // Read the request body into the buffer.
+    pplx::task<void> requestTask = request.body().read_to_end(bufferStream->create_ostream().streambuf())
+    .then([=](size_t bytesRead) {
+        // Print the content of the buffer.
+        auto& data = bufferStream->collection();
+        std::string content(data.begin(), data.end());
+        std::cout << "Received content: " << content << std::endl;
 
-        // Read the request body.
-        return request.body().read_to_end(fileStream->streambuf());
-    })
-    .then([=](size_t) {
-        // Close the file stream.
-        return fileStream->close();
+        // Reply to the client.
+        request.reply(status_codes::OK, U("File uploaded successfully."));
     })
     .then([=](pplx::task<void> t) {
         try {
             t.get();
-            request.reply(status_codes::OK, U("File uploaded successfully."));
         } catch (const std::exception& e) {
             request.reply(status_codes::InternalError, U("File upload failed."));
         }
