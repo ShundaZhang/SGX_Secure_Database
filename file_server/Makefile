@@ -41,7 +41,7 @@ $(CRT_FILE): $(KEY_FILE)
 	openssl req -new -x509 -key $(KEY_FILE) -out $(CRT_FILE) -days 365 -subj "/C=US/ST=California/L=San Francisco/O=YourCompany/OU=YourUnit/CN=10.239.166.47"
 
 clean:
-	rm -rf $(OBJ_DIR)/*.o $(BIN_DIR)/server $(CERT_DIR)/server.key $(CERT_DIR)/server.crt $(CERT_DIR)/server.pem ./uploaded_file
+	rm -rf $(OBJ_DIR)/*.o $(BIN_DIR)/server $(CERT_DIR)/server.key $(CERT_DIR)/server.crt $(CERT_DIR)/server.pem ./*.txt
 
 .PHONY: all clean
 
