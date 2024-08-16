@@ -496,11 +496,10 @@ void handle_file_upload(http_request request)
         //}
 
 	sgx_status_t ret = SGX_ERROR_UNEXPECTED;
-
         uint64_t file_size = 0;
         SGX_FILE* fp;
         const char* fname = filename.c_str();
-        const char* mode = "wb+";
+        const char* mode = "wb";
 
 	//file Open
         ret = ecall_file_open(client_global_eid, &fp, fname, mode);
@@ -509,6 +508,9 @@ void handle_file_upload(http_request request)
         size_t sizeOfWrite = 0;
         ret = ecall_file_write(client_global_eid, &sizeOfWrite, fp, reinterpret_cast<const char*>(file_content.data()), file_content.size());
         printf("Size of Write =  %ld\n", sizeOfWrite);
+
+	int32_t fileHandle;
+        ret = ecall_file_close(client_global_eid, &fileHandle, fp);
 
         // Print the new filename and file content size.
         std::cout << "Generated filename: " << filename << std::endl;
@@ -547,14 +549,35 @@ void handle_file_read(http_request request)
         filename = uploaded_dir + filename + enc_suffix;
 
         // Read the file content
-        std::ifstream infile(filename, std::ios::binary);
-        if (!infile.is_open()) {
-            request.reply(status_codes::NotFound, U("File not found."));
-            return;
-        }
+        //std::ifstream infile(filename, std::ios::binary);
+        //if (!infile.is_open()) {
+        //    request.reply(status_codes::NotFound, U("File not found."));
+        //    return;
+        //}
+        
+	//std::vector<uint8_t> file_content((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
+        //infile.close();
 
-        std::vector<uint8_t> file_content((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
-        infile.close();
+	sgx_status_t ret = SGX_ERROR_UNEXPECTED;
+	uint64_t file_size = 0;
+        SGX_FILE* fp;
+        const char* fname = filename.c_str();
+        const char* mode = "rb";
+
+        //file Open
+        ret = ecall_file_open(client_global_eid, &fp, fname, mode);
+
+	//Read from File
+        ret = ecall_file_get_file_size(client_global_eid, &file_size, fp);
+	std::vector<uint8_t> file_content(file_size);
+        
+	size_t sizeOfRead = 0;
+        ret = ecall_file_read(client_global_eid, &sizeOfRead, fp, reinterpret_cast<char*>(file_content.data()), file_size);
+        printf("Size of Read = %ld\n", sizeOfRead);
+
+	int32_t fileHandle;
+        ret = ecall_file_close(client_global_eid, &fileHandle, fp);
+
 
         // Construct JSON response
         json::value response;

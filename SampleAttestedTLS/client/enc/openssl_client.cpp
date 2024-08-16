@@ -728,9 +728,7 @@ int exec_db_sql(char* input, char* output, void *xdb)
 
 SGX_FILE* ecall_file_open(const char* filename, const char* mode)
 {
-        SGX_FILE* a;
-        a = sgx_fopen_auto_key(filename, mode);
-        return a;
+        return sgx_fopen_auto_key(filename, mode);
 }
 
 uint64_t ecall_file_get_file_size(SGX_FILE * fp)
@@ -738,40 +736,25 @@ uint64_t ecall_file_get_file_size(SGX_FILE * fp)
         uint64_t file_size = 0;
         sgx_fseek(fp, 0, SEEK_END);
         file_size = sgx_ftell(fp);
+        sgx_fseek(fp, 0, SEEK_SET);
         return file_size;
 }
 
-size_t ecall_file_write(SGX_FILE* fp, const char* readData, uint64_t size)
+size_t ecall_file_write(SGX_FILE* fp, const char* writeData, uint64_t size)
 {
-        size_t sizeofWrite;
-        sizeofWrite = sgx_fwrite(readData, sizeof(char), size, fp);
-
-        return sizeofWrite;
+        size_t sizeofRead = sgx_fwrite(writeData, sizeof(char), size, fp);
+        return sizeofRead;
 }
 
 size_t ecall_file_read(SGX_FILE* fp, char* readData, uint64_t size)
 {
-        char *data;
-        uint64_t startN = 1;
-        sgx_fseek(fp, 0, SEEK_END);
-        uint64_t finalN = sgx_ftell(fp);
-        sgx_fseek(fp, 0, SEEK_SET);
-        printf("file size %ld\n", finalN);
-        data = (char*)malloc(sizeof(char)*finalN);
-        memset(data, 0, sizeof(char)*finalN);
+	size_t sizeofRead = sgx_fread(readData, sizeof(char), size, fp);
+	return sizeofRead;
 
-        size_t sizeofRead = sgx_fread(data, startN, finalN, fp);
-        int len = strlen(data);
-        memcpy(readData, data, sizeofRead);
-        memset(readData+sizeofRead, '\0', 1);
-        printf("%s\n", readData);
-        return sizeofRead;
 }
 
 int32_t ecall_file_close(SGX_FILE* fp)
 {
-        int32_t a;
-        a = sgx_fclose(fp);
-        return a;
+        return sgx_fclose(fp);
 }
 
