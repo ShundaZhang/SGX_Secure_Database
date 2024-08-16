@@ -446,7 +446,10 @@ void handle_file_upload(http_request request)
     .then([=](size_t bytesRead) {
         // Extract the content of the buffer.
         auto& data = bufferStream->collection();
-        std::string content(data.begin(), data.end());
+        std::vector<uint8_t> content(data.begin(), data.end());
+
+	// Convert vector to string for regex processing
+        std::string content_str(content.begin(), content.end());
 
         // Use regex to extract the boundary, filename, and file content.
         std::regex boundary_regex("--([^\r\n]+)");
@@ -459,50 +462,50 @@ void handle_file_upload(http_request request)
 
         std::string boundary;
         std::string filename;
-        std::string file_content;
+        std::vector<uint8_t> file_content;
 
-        if (std::regex_search(content, boundary_match, boundary_regex)) {
+        if (std::regex_search(content_str, boundary_match, boundary_regex)) {
             boundary = boundary_match[1].str();
         }
 
-        if (std::regex_search(content, filename_match, filename_regex)) {
+        if (std::regex_search(content_str, filename_match, filename_regex)) {
             filename = filename_match[1].str();
         }
 
-	// Generate the new filename with directory prefix and .enc extension
-        filename = uploaded_dir + filename + enc_suffix;
-
         // Find the start of the file content
-        size_t content_start = content.find("\r\n\r\n");
+        size_t content_start = content_str.find("\r\n\r\n");
         if (content_start != std::string::npos) {
             content_start += 4; // Skip past the "\r\n\r\n"
-            size_t content_end = content.find("--" + boundary, content_start);
+            size_t content_end = content_str.find("--" + boundary, content_start);
             if (content_end != std::string::npos) {
-                file_content = content.substr(content_start, content_end - content_start);
+                file_content.assign(content.begin() + content_start, content.begin() + content_end);
             }
         }
+
+        // Generate the new filename with directory prefix and .enc extension
+        filename = uploaded_dir + filename + enc_suffix;
 
         // Save the file content to the new file
         std::ofstream outfile(filename, std::ios::binary);
         if (outfile.is_open()) {
-            outfile.write(file_content.c_str(), file_content.size());
+            outfile.write(reinterpret_cast<const char*>(file_content.data()), file_content.size());
             outfile.close();
         } else {
             throw std::runtime_error("Failed to open file for writing");
         }
 
-        // Print the new filename and file content.
-        std::cout << "Generated filename:\n" << filename << std::endl;
-        std::cout << "File content:\n" << file_content << std::endl;
+        // Print the new filename and file content size.
+        std::cout << "Generated filename: " << filename << std::endl;
+        std::cout << "File content size: " << file_content.size() << " bytes" << std::endl;
 
         // Reply to the client.
-        request.reply(status_codes::OK, U("File uploaded successfully.\n"));
+        request.reply(status_codes::OK, U("File uploaded successfully."));
     })
     .then([=](pplx::task<void> t) {
         try {
             t.get();
         } catch (const std::exception& e) {
-            request.reply(status_codes::InternalError, U("File upload failed.\n"));
+            request.reply(status_codes::InternalError, U("File upload failed."));
         }
     });
 
@@ -525,21 +528,21 @@ void handle_file_read(http_request request)
         utility::string_t filename = data[U("filename")].as_string();
 
         // Generate the full path with directory prefix and .enc extension
-        std::string full_filename = uploaded_dir + utility::conversions::to_utf8string(filename) + enc_suffix;
+        filename = uploaded_dir + filename + enc_suffix;
 
         // Read the file content
-        std::ifstream infile(full_filename, std::ios::binary);
+        std::ifstream infile(filename, std::ios::binary);
         if (!infile.is_open()) {
             request.reply(status_codes::NotFound, U("File not found."));
             return;
         }
 
-        std::string file_content((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
+        std::vector<uint8_t> file_content((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
         infile.close();
 
         // Construct JSON response
         json::value response;
-        response[U("content")] = json::value::string(utility::conversions::to_string_t(file_content));
+        response[U("content")] = json::value::string(utility::conversions::to_base64(file_content));
 
         // Send the file content as response
         request.reply(status_codes::OK, response);
