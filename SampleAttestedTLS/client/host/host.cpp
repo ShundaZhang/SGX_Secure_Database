@@ -435,7 +435,7 @@ std::string sql_server = "127.0.0.1";
 std::string sql_port = "3307";
 
 std::string uploaded_dir = "./uploaded/";
-std::string enc_suffix;
+std::string enc_suffix = ".enc";
 
 void handle_file_upload(http_request request)
 {
