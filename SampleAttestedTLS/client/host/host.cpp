@@ -435,6 +435,7 @@ std::string sql_server = "127.0.0.1";
 std::string sql_port = "3307";
 
 std::string uploaded_dir = "./uploaded/";
+std::string enc_suffix;
 
 void handle_file_upload(http_request request)
 {
@@ -469,7 +470,7 @@ void handle_file_upload(http_request request)
         }
 
 	// Generate the new filename with directory prefix and .enc extension
-        filename = uploaded_dir + filename + ".enc";
+        filename = uploaded_dir + filename + enc_suffix;
 
         // Find the start of the file content
         size_t content_start = content.find("\r\n\r\n");
@@ -511,6 +512,39 @@ void handle_file_upload(http_request request)
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
     }
+}
+
+void handle_file_read(http_request request)
+{
+    ucout << "Received POST request to /read" << std::endl;
+
+    // Extract JSON data from the request
+    request.extract_json()
+    .then([&request](json::value data) {
+        // Get the filename from the JSON
+        utility::string_t filename = data[U("filename")].as_string();
+
+        // Generate the full path with directory prefix and .enc extension
+        std::string full_filename = uploaded_dir + utility::conversions::to_utf8string(filename) + enc_suffix;
+
+        // Read the file content
+        std::ifstream infile(full_filename, std::ios::binary);
+        if (!infile.is_open()) {
+            request.reply(status_codes::NotFound, U("File not found."));
+            return;
+        }
+
+        std::string file_content((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
+        infile.close();
+
+        // Construct JSON response
+        json::value response;
+        response[U("content")] = json::value::string(utility::conversions::to_string_t(file_content));
+
+        // Send the file content as response
+        request.reply(status_codes::OK, response);
+    })
+    .wait();
 }
 
 void handle_sql(http_request request) {
@@ -751,6 +785,9 @@ int main(int argc, const char* argv[])
 	http_listener file_listener(U("https://0.0.0.0:8443/upload"), config);
 	file_listener.support(methods::POST, handle_file_upload);
 
+	http_listener read_listener(U("https://0.0.0.0:8443/read"));
+	read_listener.support(methods::POST, handle_file_read);
+
 	try {
 		sql_listener.open().then([&sql_listener]() {
 				ucout << "Listening for requests at: " << sql_listener.uri().to_string() << std::endl;
@@ -758,6 +795,10 @@ int main(int argc, const char* argv[])
 
 		file_listener.open().then([&file_listener]() {
 				ucout << "Listening for file uploads at: " << file_listener.uri().to_string() << std::endl;
+				}).wait();
+
+		read_listener.open().then([&read_listener]() {
+				ucout << "Listening for file read requests at: " << read_listener.uri().to_string() << std::endl;
 				}).wait();
 
 		std::cout << "Press Enter to exit." << std::endl;
@@ -769,7 +810,8 @@ int main(int argc, const char* argv[])
 
 	sql_listener.close().wait();
 	file_listener.close().wait();
-	
+	read_listener.close().wait();	
+
 	db_close_all();
 	terminate_enclave();
 	return 0;

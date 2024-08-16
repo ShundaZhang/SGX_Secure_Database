@@ -72,4 +72,4 @@ build:
 
 clean:
 	rm -f tls_client_host *.o tls_client_u.* tls_client_args.h $(CRT_FILE) $(KEY_FILE) $(PEM_FILE)
-	rm ../../uploaded -rf
+	rm ../../uploaded/*.enc -f
