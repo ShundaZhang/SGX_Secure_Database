@@ -36,7 +36,25 @@ SOCKETINCDIR = $(SOCKET_DIR)/include
 SSLINCDIR = $(SGXSSL_PKG_PATH)/include
 TLSINCDIR = $(SGXTLS_DIR)/include
 
-all: build
+# Directories
+CERT_DIR = .
+
+# Certificate files
+KEY_FILE = $(CERT_DIR)/file_server.key
+CRT_FILE = $(CERT_DIR)/file_server.crt
+PEM_FILE = $(CERT_DIR)/file_server.pem
+
+all: build $(PEM_FILE)
+
+$(PEM_FILE): $(KEY_FILE) $(CRT_FILE)
+	cat $(CRT_FILE) $(KEY_FILE) > $(PEM_FILE)
+
+$(KEY_FILE):
+	@mkdir -p $(CERT_DIR)
+	openssl genpkey -algorithm RSA -out $(KEY_FILE)
+
+$(CRT_FILE): $(KEY_FILE)
+	openssl req -new -x509 -key $(KEY_FILE) -out $(CRT_FILE) -days 365 -subj "/C=US/ST=California/L=San Francisco/O=YourCompany/OU=YourUnit/CN=10.239.166.47"
 
 build:
 	@ echo "Compilers used: $(CC), $(CXX)"
@@ -53,4 +71,4 @@ build:
 	$(CXX) -o tls_client_host host.o tls_client_u.o $(App_Link_Flags) -std=c++11 -lboost_system -lcpprest -lssl -lcrypto -pthread 
 
 clean:
-	rm -f tls_client_host *.o tls_client_u.* tls_client_args.h
+	rm -f tls_client_host *.o tls_client_u.* tls_client_args.h $(CRT_FILE) $(KEY_FILE) $(PEM_FILE)
