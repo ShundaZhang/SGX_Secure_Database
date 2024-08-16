@@ -434,6 +434,8 @@ using namespace concurrency::streams;
 std::string sql_server = "127.0.0.1";
 std::string sql_port = "3307";
 
+std::string uploaded_dir = "./uploaded/";
+
 void handle_file_upload(http_request request)
 {
     auto bufferStream = std::make_shared<container_buffer<std::vector<uint8_t>>>();
@@ -465,6 +467,9 @@ void handle_file_upload(http_request request)
         if (std::regex_search(content, filename_match, filename_regex)) {
             filename = filename_match[1].str();
         }
+
+	// Generate the new filename with directory prefix and .enc extension
+        filename = uploaded_dir + filename + ".enc";
 
         // Find the start of the file content
         size_t content_start = content.find("\r\n\r\n");
