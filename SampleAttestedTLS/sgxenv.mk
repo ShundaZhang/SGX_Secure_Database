@@ -92,7 +92,7 @@ SGXSSL_U_Link_Libraries := -L$(SGXSSL_PKG_PATH)/lib64 -Wl,--whole-archive -l$(SG
 SGXTLS_U_Link_Libraries := -lsgx_utls
 
 App_Cpp_Flags := $(App_C_Flags) -std=c++11
-App_Link_Flags := $(SGX_COMMON_CFLAGS) $(SGXSSL_U_Link_Libraries) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) $(SGXTLS_U_Link_Libraries) -lsgx_dcap_ql -lsgx_dcap_quoteverify -lcrypto -lpthread -lsgx_ustdc_ex
+App_Link_Flags := $(SGX_COMMON_CFLAGS) $(SGXSSL_U_Link_Libraries) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) $(SGXTLS_U_Link_Libraries) -lsgx_dcap_ql -lsgx_dcap_quoteverify -lcrypto -lpthread -lsgx_ustdc_ex -lsgx_uprotected_fs
 
 ######## Enclave Settings ########
 
@@ -145,7 +145,7 @@ Enclave_Link_Flags := $(SGX_COMMON_CFLAGS) -Wl,--no-undefined -nostdlib -nodefau
 	-L$(SGX_LIBRARY_PATH) \
 	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
 	-L$(SGX_LIBRARY_PATH) \
-	-Wl,--start-group -lsgx_tstdc -lsgx_pthread -lsgx_tcxx -lsgx_tcrypto -lsgx_tstdc_ex -l$(Service_Library_Name) \
+	-Wl,--start-group -lsgx_tstdc -lsgx_pthread -lsgx_tcxx -lsgx_tcrypto -lsgx_tstdc_ex -lsgx_tprotected_fs -l$(Service_Library_Name) \
 	-l$(SGX_TVL_Library_Name) -lsgx_ttls -Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
