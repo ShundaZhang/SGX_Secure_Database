@@ -40,6 +40,7 @@
 #include <cstdlib>
 #include <regex>
 
+#include "sgx_tprotected_fs.h"
 
 #define TLS_SERVER_NAME "localhost"
 #define TLS_SERVER_PORT "12340"
@@ -486,13 +487,28 @@ void handle_file_upload(http_request request)
         filename = uploaded_dir + filename + enc_suffix;
 
         // Save the file content to the new file
-        std::ofstream outfile(filename, std::ios::binary);
-        if (outfile.is_open()) {
-            outfile.write(reinterpret_cast<const char*>(file_content.data()), file_content.size());
-            outfile.close();
-        } else {
-            throw std::runtime_error("Failed to open file for writing");
-        }
+        //std::ofstream outfile(filename, std::ios::binary);
+        //if (outfile.is_open()) {
+        //    outfile.write(reinterpret_cast<const char*>(file_content.data()), file_content.size());
+        //    outfile.close();
+        //} else {
+        //    throw std::runtime_error("Failed to open file for writing");
+        //}
+
+	sgx_status_t ret = SGX_ERROR_UNEXPECTED;
+
+        uint64_t file_size = 0;
+        SGX_FILE* fp;
+        const char* fname = filename.c_str();
+        const char* mode = "wb+";
+
+	//file Open
+        ret = ecall_file_open(client_global_eid, &fp, fname, mode);
+
+	//Write to file
+        size_t sizeOfWrite = 0;
+        ret = ecall_file_write(client_global_eid, &sizeOfWrite, fp, reinterpret_cast<const char*>(file_content.data()), file_content.size());
+        printf("Size of Write =  %ld\n", sizeOfWrite);
 
         // Print the new filename and file content size.
         std::cout << "Generated filename: " << filename << std::endl;

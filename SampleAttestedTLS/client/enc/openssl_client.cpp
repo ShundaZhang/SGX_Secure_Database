@@ -741,7 +741,7 @@ uint64_t ecall_file_get_file_size(SGX_FILE * fp)
         return file_size;
 }
 
-size_t ecall_file_write(SGX_FILE* fp, char* readData, uint64_t size)
+size_t ecall_file_write(SGX_FILE* fp, const char* readData, uint64_t size)
 {
         size_t sizeofWrite;
         sizeofWrite = sgx_fwrite(readData, sizeof(char), size, fp);
